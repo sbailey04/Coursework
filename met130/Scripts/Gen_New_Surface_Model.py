@@ -12,6 +12,7 @@ from metpy.io import metar
 from metpy.plots import declarative
 from metpy.units import units
 import pandas as pd
+import math
 
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
@@ -47,14 +48,27 @@ else:
     month = parsedDate[1]
     day = parsedDate[2]
     hour = parsedDate[3]
+    
 area = input("Select map area: ")
-# dimensions = int(input("Input map dimensions: "))
-dpiSet = int(input("Input map dpi: "))
-scale = int(input("Select the map scale: "))
+#dimensions = int(input("Input map dimensions: "))
+
+dpiSet0 = input("Input map dpi [default 150]: ")
+if dpiSet0 == '':
+    dpiSet = 150
+else:
+    dpiSet = dpiSet0
+    
+scale0 = input("Select the map scale [default 1.3]: ")
+if scale0 == '':
+    scale = 1.3
+else:
+    scale = float(scale0)
 assigned = (input("Is this a map for an assignment? [y/n, default 'n']: "))
+
 
 # Read Data
 date = datetime(year, month, day, hour)
+
 
 # Download current data from http://bergeron.valpo.edu/current_surface_data and upload to your Jupyterhub space.
 data = StringIO(urlopen('http://bergeron.valpo.edu/current_surface_data/'
@@ -71,6 +85,7 @@ df['dwpf'] = (df.dew_point_temperature.values * units.degC).to('degF')
 # Format
 mslp_formatter = lambda v: format(v*10, '.0f')[-3:]
 
+
 # Plot desired data
 obs = declarative.PlotObs()
 obs.data = df
@@ -83,6 +98,7 @@ obs.formats = ['sky_cover', None, None, mslp_formatter, 'current_weather']
 obs.reduce_points = 0.75
 obs.vector_field = ['eastward_wind', 'northward_wind']
 
+
 # Panel for plot with Map features
 panel = declarative.MapPanel()
 panel.layout = (1, 1, 1)
@@ -92,6 +108,7 @@ panel.layers = ['states']
 panel.plots = [obs]
 panel.title = f'Bailey, Sam - Surface Map {obs.time}Z, {area}'
 
+
 # Parsing the panel.area into a list, and doing math on it.
 areaList = list(panel.area)
 areaMap = map(int, areaList)
@@ -99,12 +116,14 @@ mapList = list(areaMap)
 diffLat = int(mapList[1])-int(mapList[0])
 diffLon = int(mapList[3])-int(mapList[2])
 avgDiff = ((diffLat + diffLon)//2)
-scaledDiff = avgDiff*scale
+scaledDiff = math.floor(avgDiff*scale)
+
 
 # Bringing it all together
 pc = declarative.PanelContainer()
 pc.size = (scaledDiff, scaledDiff)
 pc.panels = [panel]
+
 
 # Parsing assignment status to determine save location
 if assigned == 'y':
