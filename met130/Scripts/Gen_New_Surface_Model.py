@@ -63,7 +63,14 @@ if scale0 == '':
     scale = 1.3
 else:
     scale = float(scale0)
-assigned = (input("Is this a map for an assignment? [y/n, default 'n']: "))
+
+prfactor0 = input("Enter the station reduction factor [0.75 default]: ")
+if prfactor0 == '':
+    prfactor = 0.75
+else:
+    prfactor = float(prfactor0)
+
+assigned = input("Is this a map for an assignment? [y/n, default 'n']: ")
 
 
 # Read Data
@@ -95,7 +102,7 @@ obs.level = None
 obs.fields = ['cloud_coverage', 'tmpf', 'dwpf', 'air_pressure_at_sea_level', 'current_wx1_symbol'] # Archive data still stored as 'present_weather', but is now stored as 'current_wx1_symbol' in MetPy.
 obs.locations = ['C', 'NW', 'SW', 'NE', 'W']
 obs.formats = ['sky_cover', None, None, mslp_formatter, 'current_weather']
-obs.reduce_points = 0.75
+obs.reduce_points = prfactor
 obs.vector_field = ['eastward_wind', 'northward_wind']
 
 
