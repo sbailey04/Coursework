@@ -1,8 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# # Surface Data and Plotting
-# 
+################################################
+#                                              #
+# Basic Automated Surface Map Generator Script #
+#                                              #
+#            Author: Sam Bailey                #
+#                                              #
+#                                              #
+#    Based originally on a met130 handout      #
+#                                              #
+################################################
 
 from datetime import datetime, timedelta
 from io import StringIO
