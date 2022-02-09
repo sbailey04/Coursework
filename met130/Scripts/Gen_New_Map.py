@@ -70,7 +70,6 @@ else:
     hour = parsedDate[3]
     
 area = input("> Select map area: ")
-#dimensions = int(input("Input map dimensions: "))
 
 dpiSet0 = input("> Input map dpi [default 150]: ")
 if dpiSet0 == '':
@@ -96,6 +95,7 @@ assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
 # Read Data
 date = datetime(year, month, day, hour)
 
+# Data Acquisition
 if level == 'surface':
     if year < 2019:
         df = pd.read_csv(f'http://bergeron.valpo.edu/archive_surface_data/{date:%Y}/{date:%Y%m%d}_metar.csv', parse_dates=['date_time'], na_values=[-9999], low_memory=False)
@@ -110,12 +110,7 @@ else:
     df = IAStateUpperAir.request_all_data(date)
     df = add_station_lat_lon(df, 'station').dropna(subset=['latitude', 'longitude'])
     df['dewpoint_depression'] = df['temperature'] - df['dewpoint']
-# Download current data from http://bergeron.valpo.edu/current_surface_data and upload to your Jupyterhub space.
 
-
-# We bring in surface data that is in METAR format and store it for approximately two weeks in `/data/ldmdata/surface/sao` and the format of the filenames are `YYYYMMDDHH_sao.wmo` where `YYYY` is the year, `MM` is the month, `DD` is the day, and `HH` is the hour. Or there are pre-decoded files located in `/data/ldmdata/surface/csv` and can be read in using the Pandas module.
-# Read with pandas, note differences from METAR files
-# df = pd.read_csv(f'http://bergeron.valpo.edu/archive_surface_data/{date:%Y}/{date:%Y%m%d}_metar.csv', parse_dates=['date_time'], na_values=[-9999], low_memory=False)
 
 
 
