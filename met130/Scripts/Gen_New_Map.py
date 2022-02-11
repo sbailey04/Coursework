@@ -3,7 +3,7 @@
 #     Basic Automated Map Generator Script     #
 #                                              #
 #            Author: Sam Bailey                #
-#                                              #
+#        Last Revised: Feb 11, 2022            #
 #                                              #
 #    Based originally on a met130 handout      #
 #                                              #
@@ -33,7 +33,7 @@ if levelInput != 'surface':
 else:
     level = levelInput
 
-inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', or type 'recent' for the most recent map: ")
+inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
 if inputDate == 'recent':
     if level == 'surface':
         if currentTime.hour > 21:
@@ -62,12 +62,20 @@ if inputDate == 'recent':
     day = currentTime.day
 else:
     parseDate1 = list(inputDate.split(", "))
-    parseDate2 = map(int, parseDate1)
-    parsedDate = list(parseDate2)
-    year = parsedDate[0]
-    month = parsedDate[1]
-    day = parsedDate[2]
-    hour = parsedDate[3]
+    if parseDate1[0] == 'today':
+        year = currentTime.year
+        month = currentTime.month
+        day = currentTime.day
+        hour = int(parseDate1[1])
+    else:
+        parseDate2 = map(int, parseDate1)
+        parsedDate = list(parseDate2)
+        year = parsedDate[0]
+        month = parsedDate[1]
+        day = parsedDate[2]
+        hour = parsedDate[3]
+timestampNum = f"{year}, {month}, {day}, {hour}Z"
+timestampAlp = f"{year}, {currentTime.strftime('%b')} {day}, {hour}Z"
     
 area = input("> Select map area: ")
 
@@ -109,6 +117,7 @@ if level == 'surface':
 else:
     df = IAStateUpperAir.request_all_data(date)
     df = add_station_lat_lon(df, 'station').dropna(subset=['latitude', 'longitude'])
+    df = df[df.station != 'KVER'] # "central Missouri" station that shouldn't be there, due to faulty lat-lon data
     df['dewpoint_depression'] = df['temperature'] - df['dewpoint']
 
 
@@ -147,18 +156,22 @@ else:
     obs.vector_field = ['eastward_wind', 'northward_wind']
 obs.reduce_points = prfactor
 
+# Custom panel.area definitions
+panel = declarative.MapPanel()
+area_dictionary = {'USc':(-120, -74, 25, 50)}
 
 # Panel for plot with Map features
-panel = declarative.MapPanel()
 panel.layout = (1, 1, 1)
-panel.projection = 'lcc'
-panel.area = f'{area}'
+if area in area_dictionary:
+    panel.area = area_dictionary[f"{area}"]
+else:
+    panel.area = f'{area}'
 panel.layers = ['states', 'coastline']
 panel.plots = [obs]
 if level != 'surface':
-    panel.title = f'Bailey, Sam - {level}mb Map {obs.time}Z, {area}'
+    panel.title = f'Bailey, Sam - {area} {level}mb Map {timestampAlp}'
 else:
-    panel.title = f'Bailey, Sam - Surface Map {obs.time}Z, {area}'
+    panel.title = f'Bailey, Sam - {area} Surface Map {timestampAlp}'
 
 
 # Parsing the panel.area into a list, and doing math on it.
@@ -169,6 +182,11 @@ diffLat = int(mapList[1])-int(mapList[0])
 diffLon = int(mapList[3])-int(mapList[2])
 avgDiff = ((diffLat + diffLon)//2)
 scaledDiff = math.floor(avgDiff*scale)
+
+# Determining projection
+midLon = (mapList[1]+mapList[0])//2
+midLat = (mapList[3]+mapList[2])//2
+panel.projection = ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat) # ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat), mer, ps, lcc
 
 
 # Bringing it all together
@@ -184,9 +202,9 @@ else:
     saveLocale = 'Test Maps'
 
 if level != 'surface':
-    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{level}mb Map - {obs.time}Z, {area}, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
 else:
-    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/Surface Map - {obs.time}Z, {area}, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
 print("> Map successfully saved!")
 
 
