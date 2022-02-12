@@ -20,7 +20,10 @@ from metpy.io import metar
 from metpy.plots import declarative
 from metpy.units import units
 import pandas as pd
+from collections import Counter
 import math
+import os
+from PIL import Image
 
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
@@ -97,7 +100,13 @@ if prfactor0 == '':
 else:
     prfactor = float(prfactor0)
 
-assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
+projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
+
+saveQuery = input("> Would you like to 'save' this map? [y/n, default 'n']: ")
+if saveQuery == 'y':
+    assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
+else:
+    assigned = 'n'
 
 
 # Read Data
@@ -140,7 +149,8 @@ if level != 'surface':
 obs = declarative.PlotObs()
 obs.data = df
 obs.time = date
-obs.time_window = timedelta(minutes=15)
+if year > 2018:
+    obs.time_window = timedelta(minutes=15)
 if level != 'surface':
     obs.level = level * units.hPa
     obs.fields = ['temperature', 'dewpoint_depression', 'height']
@@ -158,12 +168,26 @@ obs.reduce_points = prfactor
 
 # Custom panel.area definitions
 panel = declarative.MapPanel()
-area_dictionary = {'USc':(-120, -74, 25, 50)}
+area_dictionary = {'USc':(-120, -74, 25, 50),
+                  'MW':(-94.5, -78.5, 35.5, 47)}
 
 # Panel for plot with Map features
 panel.layout = (1, 1, 1)
-if area in area_dictionary:
-    panel.area = area_dictionary[f"{area}"]
+simArea = area.replace("+", "")
+simArea = simArea.replace("-", "")
+if simArea in area_dictionary:
+    # Parse custom zoom feature
+    splitArea = Counter(area)
+    factor = (splitArea['+']) - (splitArea['-'])
+    scaleFactor = (1 - 2**-factor)/2
+    west, east, south, north = area_dictionary[f'{simArea}']
+    newWest = west - (west - east) * scaleFactor
+    newEast = east + (west - east) * scaleFactor
+    newSouth = south - (south - north) * scaleFactor
+    newNorth = north + (south - north) * scaleFactor
+    modArea = newWest, newEast, newSouth, newNorth
+    
+    panel.area = modArea
 else:
     panel.area = f'{area}'
 panel.layers = ['states', 'coastline']
@@ -186,7 +210,11 @@ scaledDiff = math.floor(avgDiff*scale)
 # Determining projection
 midLon = (mapList[1]+mapList[0])//2
 midLat = (mapList[3]+mapList[2])//2
-panel.projection = ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat) # ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat), mer, ps, lcc
+if projectionInput == '' or projectionInput == 'custom':
+    projection = ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat)
+else:
+    projection = projectionInput
+panel.projection = projection # ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat), mer, ps, lcc
 
 
 # Bringing it all together
@@ -201,11 +229,23 @@ if assigned == 'y':
 else:
     saveLocale = 'Test Maps'
 
-if level != 'surface':
-    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+if saveQuery == 'y':
+    if level != 'surface':
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+    else:
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+    print("> Map successfully saved!")
 else:
-    pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
-print("> Map successfully saved!")
+    if level != 'surface':
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+        save.show()
+        os.remove(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+    else:
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
+        save.show()
+        os.remove(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
 
 
 # Assorted other useful - or potentially useful - commands.
