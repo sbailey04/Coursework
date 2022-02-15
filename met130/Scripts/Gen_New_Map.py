@@ -3,7 +3,7 @@
 #     Basic Automated Map Generator Script     #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Feb 11, 2022            #
+#        Last Revised: Feb 15, 2022            #
 #                                              #
 #    Based originally on a met130 handout      #
 #                                              #
@@ -39,24 +39,24 @@ else:
 inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
 if inputDate == 'recent':
     if level == 'surface':
-        if currentTime.hour > 21:
+        if currentTime.hour >= 21:
             hour = 21
-        elif currentTime.hour > 18:
+        elif currentTime.hour >= 18:
             hour = 18
-        elif currentTime.hour > 15:
+        elif currentTime.hour >= 15:
             hour = 15
-        elif currentTime.hour > 12:
+        elif currentTime.hour >= 12:
             hour = 12
-        elif currentTime.hour > 9:
+        elif currentTime.hour >= 9:
             hour = 9
-        elif currentTime.hour > 6:
+        elif currentTime.hour >= 6:
             hour = 6
-        elif currentTime.hour > 3:
+        elif currentTime.hour >= 3:
             hour = 3
         else:
             hour = 0
     else:
-        if currentTime.hour > 12:
+        if currentTime.hour >= 12:
             hour = 12
         else:
             hour = 0
@@ -77,8 +77,10 @@ else:
         month = parsedDate[1]
         day = parsedDate[2]
         hour = parsedDate[3]
-timestampNum = f"{year}, {month}, {day}, {hour}Z"
-timestampAlp = f"{year}, {currentTime.strftime('%b')} {day}, {hour}Z"
+inputTime = datetime(year, month, day, hour)
+daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
+timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{hour}Z"
+timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
     
 area = input("> Select map area: ")
 
@@ -154,13 +156,14 @@ if year > 2018:
 if level != 'surface':
     obs.level = level * units.hPa
     obs.fields = ['temperature', 'dewpoint_depression', 'height']
+    obs.colors = ['crimson', 'blue', 'darkslategrey']
     obs.locations = ['NW', 'SW', 'NE']
     obs.formats = [None, None, height_format]
     obs.vector_field = ['u_wind', 'v_wind']
 else:
     obs.level = None
-    obs.fields = ['cloud_coverage', 'tmpf', 'dwpf', 'air_pressure_at_sea_level', f'{weather_format}']
-# Archive data still stored as 'present_weather', but is now stored as 'current_wx1_symbol' in MetPy.
+    obs.fields = ['cloud_coverage', 'tmpf', 'dwpf', 'air_pressure_at_sea_level', f'{weather_format}'] # Archive data still stored as 'present_weather', but is now stored as 'current_wx1_symbol' in MetPy.
+    obs.colors = ['black', 'crimson', 'blue', 'darkslategrey', 'indigo']
     obs.locations = ['C', 'NW', 'SW', 'NE', 'W']
     obs.formats = ['sky_cover', None, None, mslp_formatter, 'current_weather']
     obs.vector_field = ['eastward_wind', 'northward_wind']
@@ -229,11 +232,19 @@ if assigned == 'y':
 else:
     saveLocale = 'Test Maps'
 
+OldDir = os.path.isdir(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}')
+
 if saveQuery == 'y':
+    if OldDir == False:
+        os.mkdir(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}')
     if level != 'surface':
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+        save.show()
     else:
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
+        save.show()
     print("> Map successfully saved!")
 else:
     if level != 'surface':
