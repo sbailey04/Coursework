@@ -3,9 +3,9 @@
 #     Basic Automated Map Generator Script     #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Feb 15, 2022            #
+#        Last Revised: Feb 25, 2022            #
 #                                              #
-#    Based originally on a met130 handout      #
+#         Created in late Jan, 2022            #
 #                                              #
 ################################################
 
@@ -228,35 +228,35 @@ pc.panels = [panel]
 
 # Parsing assignment status to determine save location
 if assigned == 'y':
-    saveLocale = 'Assignment Maps'
+    saveLocale = 'Assignment_Maps'
 else:
-    saveLocale = 'Test Maps'
+    saveLocale = 'Test_Maps'
 
-OldDir = os.path.isdir(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}')
+OldDir = os.path.isdir(f'../Maps/{saveLocale}/{daystamp}')
 
 if saveQuery == 'y':
     if OldDir == False:
-        os.mkdir(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}')
+        os.mkdir(f'../Maps/{saveLocale}/{daystamp}')
     if level != 'surface':
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
-        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+        pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
         save.show()
     else:
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
-        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
+        pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
         save.show()
     print("> Map successfully saved!")
 else:
     if level != 'surface':
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
-        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+        pc.save(f'../Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'../Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
         save.show()
-        os.remove(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
+        os.remove(f'../Maps/{saveLocale}/{timestampNum}, {area} {level}mb Map, {dpiSet} DPI - Bailey, Sam.png')
     else:
-        pc.save(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
-        save = Image.open(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
+        pc.save(f'../Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png', dpi=dpiSet, bbox_inches='tight')
+        save = Image.open(f'../Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
         save.show()
-        os.remove(f'/home/sbailey4/Documents/met130/Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
+        os.remove(f'../Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
 
 
 # Assorted other useful - or potentially useful - commands.
