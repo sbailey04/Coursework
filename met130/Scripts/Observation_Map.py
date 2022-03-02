@@ -39,26 +39,36 @@ if prevInput == 'y':
     for line in prevObsStored:
         prevObsList.append(line.strip())
         count += 1
-    levelInput = prevObsList[0]
-    inputDate = prevObsList[1]
-    dew = prevObsList[2]
-    area = prevObsList[3]
-    dpiSet0 = prevObsList[4]
-    scale0 = prevObsList[5]
-    prfactor0 = prevObsList[6]
-    projectionInput = prevObsList[7]
+    levelInputPrev = prevObsList[0]
+    inputDatePrev = prevObsList[1]
+    dewPrev = prevObsList[2]
+    areaPrev = prevObsList[3]
+    dpiSet0Prev = prevObsList[4]
+    scale0Prev = prevObsList[5]
+    prfactor0Prev = prevObsList[6]
+    projectionInputPrev = prevObsList[7]
     
         
         
-if prevInput != 'y':
+if prevInput == 'y':
+    levelInput = input(f"> Input the map level you would like to create, or input 'surface' for a surface-level map [Prev: {levelInputPrev}]: ")
+else:
     levelInput = input("> Input the map level you would like to create, or input 'surface' for a surface-level map: ")
+if (prevInput == 'y') and (levelInput == ''):
+    levelInput = levelInputPrev
 if levelInput != 'surface':
     level = int(levelInput)
 else:
     level = levelInput
 
-if prevInput != 'y':
+
+if prevInput == 'y':
+    inputDate = input(f"> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map [Prev: {inputDatePrev}]: ")
+else:
     inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
+if (prevInput == 'y') and (inputDate == ''):
+    inputDate = inputDatePrev
+
 if inputDate == 'recent':
     if level == 'surface':
         if currentTime.hour >= 21:
@@ -101,56 +111,87 @@ else:
         hour = parsedDate[3]
 inputTime = datetime(year, month, day, hour)
 daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
-timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{hour}Z"
+timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
 timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
 
 dew = False
-if prevInput != 'y':
-    if level != 'surface':
-        dew = input("> Would you like to use dewpoint temperature ['y'] or dewpoint depression [default]: ")
-        if dew == 'y':
-            dew = True
+if level != 'surface':
+    if prevInput == 'y':
+        dew = input(f"> Would you like to use dewpoint temperature or dewpoint depression [y/n, 'n' default, Prev: {dewPrev}]: ")
+    else:
+        dew = input("> Would you like to use dewpoint temperature or dewpoint depression [y/n, 'n' default]: ")
+    if (prevInput == 'y') and (dew == ''):
+        dew = dewPrev
+    if dew == 'y':
+        dew = True
     
-if prevInput != 'y':
-    area = input("> Select map area: ")
 
-if prevInput != 'y':
+if prevInput == 'y':
+    area = input(f"> Select map area [Prev: {areaPrev}]: ")
+else:
+    area = input("> Select map area: ")
+if (prevInput == 'y') and (area == ''):
+    area = areaPrev
+
+
+if prevInput == 'y':
+    dpiSet0 = input(f"> Input map dpi [default 150, Prev: {dpiSet0Prev}]: ")
+else:
     dpiSet0 = input("> Input map dpi [default 150]: ")
-if dpiSet0 == '':
+if (prevInput == 'y') and (dpiSet0 == ''):
+    dpiSet0 = dpiSet0Prev
+if (dpiSet0 == '') or (dpiSet0 == 'default'):
     dpiSet = 150
 else:
     dpiSet = dpiSet0
 
-if prevInput != 'y':
+
+if prevInput == 'y':
+    scale0 = input(f"> Select the map scale [default 1.3, Prev: {scale0Prev}]: ")
+else:
     scale0 = input("> Select the map scale [default 1.3]: ")
+if (prevInput == 'y') and (scale0 == ''):
+    scale0 = scale0Prev
 if scale0 == '':
     scale = 1.3
 else:
     scale = float(scale0)
 
-if prevInput != 'y':
+
+if prevInput == 'y':
+    prfactor0 = input(f"> Enter the station reduction factor [default 0.75, Prev: {prfactor0Prev}]: ")
+else:
     prfactor0 = input("> Enter the station reduction factor [default 0.75]: ")
-if prfactor0 == '':
+if (prevInput == 'y') and (prfactor0 == ''):
+    prfactor0 = prfactor0Prev
+if (prfactor0 == '') or (prfactor0 == 'default'):
     prfactor = 0.75
 else:
     prfactor = float(prfactor0)
 
-if prevInput != 'y':
-    projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
 
-saveQuery = input("> Would you like to 'save' this map? [y/n, default 'n']: ")
+if prevInput == 'y':
+    projectionInput = input(f"> Enter the code for the map projection you would like to use [default 'custom', Prev: {projectionInputPrev}]: ")
+else:
+    projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
+if (prevInput == 'y') and (projectionInput == ''):
+    projectionInput = projectionInputPrev
+
+saveQuery = input("> Would you like to 'save' this map? [y/n, default 'y']: ")
+if saveQuery != 'n':
+    saveQuery = 'y'
 if saveQuery == 'y':
     assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
 else:
     assigned = 'n'
     
 # Handling the recent settings file
-if prevInput != 'y':
-    if os.path.isfile("prevObs.txt"):
-        os.remove("prevObs.txt")
-    with open("prevObs.txt", "x") as prev:
-        W = [f'{levelInput}\n', f'{inputDate}\n', f'{dew}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{prfactor0}\n', f'{projectionInput}\n']
-        prev.writelines(W)
+
+if os.path.isfile("prevObs.txt"):
+    os.remove("prevObs.txt")
+with open("prevObs.txt", "x") as prev:
+    W = [f'{levelInput}\n', f'{inputDate}\n', f'{dew}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{prfactor0}\n', f'{projectionInput}\n']
+    prev.writelines(W)
 
 
 # Read Data
