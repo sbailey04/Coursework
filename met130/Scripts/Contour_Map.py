@@ -1,9 +1,9 @@
 ################################################
 #                                              #
-# Basic Automated Contour Map Generator Script #
+#    Automated Contour Map Generator Script    #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Feb 25, 2022            #
+#        Last Revised: Mar 01, 2022            #
 #                                              #
 #          Created on Feb 22, 2022             #
 #                                              #
@@ -89,11 +89,19 @@ if scale0 == '':
 else:
     scale = float(scale0)
 
-barbfactor0 = input("> Enter the barb reduction factor [default 3]: ")
-if barbfactor0 == '':
-    barbfactor = 3
-else:
-    barbfactor = float(barbfactor0)
+if "barbs" in factorsPart:
+    barbfactor0 = input("> Enter the barb reduction factor [default 3]: ")
+    if barbfactor0 == '':
+        barbfactor = 3
+    else:
+        barbfactor = int(barbfactor0)
+
+if ("temp_contours" in factorsPart) or ("pressure" in factorsPart) or ("pressure_heights" in factorsPart):
+    smoothing = input("> Enter the contour smoothing factor [default 0]: ")
+    if smoothing == '':
+        smoothing = 0
+    else:
+        smoothing = int(smoothing)
 
 projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
 
@@ -167,6 +175,7 @@ if level != 'surface':
         pressure_heights.time = plot_time
         pressure_heights.contours = list(range(0, 12000, steps))
         pressure_heights.clabels = True
+        pressure_heights.smooth_contour = smoothing
         plots_list.append(pressure_heights)
     
     if "temp_contours" in factorsPart:
@@ -180,6 +189,7 @@ if level != 'surface':
         temp_contours.linestyle = 'dashed'
         temp_contours.clabels = True
         temp_contours.plot_units = 'degF'
+        temp_contours.smooth_contour = smoothing
         plots_list.append(temp_contours)
         
     if "temp_fill" in factorsPart:
@@ -220,6 +230,7 @@ else:
         pressure.contours = list(range(0, 2000, 4))
         pressure.clabels = True
         pressure.plot_units = 'hPa'
+        pressure.smooth_contour = smoothing
         plots_list.append(pressure)
         
     # Set attributes for plotting filled contours

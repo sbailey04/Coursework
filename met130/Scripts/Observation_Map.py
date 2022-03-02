@@ -1,9 +1,9 @@
 ################################################
 #                                              #
-#     Basic Automated Map Generator Script     #
+#  Automated Observation Map Generator Script  #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Feb 25, 2022            #
+#        Last Revised: Mar 02, 2022            #
 #                                              #
 #         Created in late Jan, 2022            #
 #                                              #
@@ -30,13 +30,35 @@ currentTime = datetime.utcnow()
 print(f"> It is currently {currentTime}Z")
 
 # User Input
-levelInput = input("> Input the map level you would like to create, or input 'surface' for a surface-level map: ")
+prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
+if prevInput == 'y':
+    prevObs = open('prevObs.txt', 'r')
+    prevObsStored = prevObs.readlines()
+    count = 0
+    prevObsList = []
+    for line in prevObsStored:
+        prevObsList.append(line.strip())
+        count += 1
+    levelInput = prevObsList[0]
+    inputDate = prevObsList[1]
+    dew = prevObsList[2]
+    area = prevObsList[3]
+    dpiSet0 = prevObsList[4]
+    scale0 = prevObsList[5]
+    prfactor0 = prevObsList[6]
+    projectionInput = prevObsList[7]
+    
+        
+        
+if prevInput != 'y':
+    levelInput = input("> Input the map level you would like to create, or input 'surface' for a surface-level map: ")
 if levelInput != 'surface':
     level = int(levelInput)
 else:
     level = levelInput
 
-inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
+if prevInput != 'y':
+    inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
 if inputDate == 'recent':
     if level == 'surface':
         if currentTime.hour >= 21:
@@ -81,34 +103,54 @@ inputTime = datetime(year, month, day, hour)
 daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
 timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{hour}Z"
 timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
-    
-area = input("> Select map area: ")
 
-dpiSet0 = input("> Input map dpi [default 150]: ")
+dew = False
+if prevInput != 'y':
+    if level != 'surface':
+        dew = input("> Would you like to use dewpoint temperature ['y'] or dewpoint depression [default]: ")
+        if dew == 'y':
+            dew = True
+    
+if prevInput != 'y':
+    area = input("> Select map area: ")
+
+if prevInput != 'y':
+    dpiSet0 = input("> Input map dpi [default 150]: ")
 if dpiSet0 == '':
     dpiSet = 150
 else:
     dpiSet = dpiSet0
-    
-scale0 = input("> Select the map scale [default 1.3]: ")
+
+if prevInput != 'y':
+    scale0 = input("> Select the map scale [default 1.3]: ")
 if scale0 == '':
     scale = 1.3
 else:
     scale = float(scale0)
 
-prfactor0 = input("> Enter the station reduction factor [default 0.75]: ")
+if prevInput != 'y':
+    prfactor0 = input("> Enter the station reduction factor [default 0.75]: ")
 if prfactor0 == '':
     prfactor = 0.75
 else:
     prfactor = float(prfactor0)
 
-projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
+if prevInput != 'y':
+    projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
 
 saveQuery = input("> Would you like to 'save' this map? [y/n, default 'n']: ")
 if saveQuery == 'y':
     assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
 else:
     assigned = 'n'
+    
+# Handling the recent settings file
+if prevInput != 'y':
+    if os.path.isfile("prevObs.txt"):
+        os.remove("prevObs.txt")
+    with open("prevObs.txt", "x") as prev:
+        W = [f'{levelInput}\n', f'{inputDate}\n', f'{dew}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{prfactor0}\n', f'{projectionInput}\n']
+        prev.writelines(W)
 
 
 # Read Data
@@ -134,7 +176,6 @@ else:
 
 
 
-
 # Format
 mslp_formatter = lambda v: format(v*10, '.0f')[-3:]
 
@@ -151,19 +192,22 @@ if level != 'surface':
 obs = declarative.PlotObs()
 obs.data = df
 obs.time = date
-if year > 2018:
-    obs.time_window = timedelta(minutes=15)
 if level != 'surface':
     obs.level = level * units.hPa
-    obs.fields = ['temperature', 'dewpoint_depression', 'height']
-    obs.colors = ['crimson', 'blue', 'darkslategrey']
+    if dew:
+        obs.fields = ['temperature', 'dewpoint', 'height']
+        obs.colors = ['crimson', 'green', 'darkslategrey']
+    else:
+        obs.fields = ['temperature', 'dewpoint_depression', 'height']
+        obs.colors = ['crimson', 'green', 'darkslategrey']
     obs.locations = ['NW', 'SW', 'NE']
     obs.formats = [None, None, height_format]
     obs.vector_field = ['u_wind', 'v_wind']
 else:
+    obs.time_window = timedelta(minutes=15)
     obs.level = None
     obs.fields = ['cloud_coverage', 'tmpf', 'dwpf', 'air_pressure_at_sea_level', f'{weather_format}'] # Archive data still stored as 'present_weather', but is now stored as 'current_wx1_symbol' in MetPy.
-    obs.colors = ['black', 'crimson', 'blue', 'darkslategrey', 'indigo']
+    obs.colors = ['black', 'crimson', 'green', 'darkslategrey', 'indigo']
     obs.locations = ['C', 'NW', 'SW', 'NE', 'W']
     obs.formats = ['sky_cover', None, None, mslp_formatter, 'current_weather']
     obs.vector_field = ['eastward_wind', 'northward_wind']
