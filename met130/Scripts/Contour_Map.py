@@ -3,7 +3,7 @@
 #    Automated Contour Map Generator Script    #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 01, 2022            #
+#        Last Revised: Mar 02, 2022            #
 #                                              #
 #          Created on Feb 22, 2022             #
 #                                              #
@@ -24,22 +24,57 @@ from PIL import Image
 currentTime = datetime.utcnow()
 print(f"> It is currently {currentTime}Z")
 
-levelInput = input("> Input the map level you would like to create, or input 'surface' for a surface-level map: ")
+
+# User input
+prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
+if prevInput == 'y':
+    prevCon = open('prevCon.txt', 'r')
+    prevConStored = prevCon.readlines()
+    count = 0
+    prevConList = []
+    for line in prevConStored:
+        prevConList.append(line.strip())
+        count += 1
+    levelInputPrev = prevConList[0]
+    inputDatePrev = prevConList[1]
+    dTimePrev = prevConList[2]
+    factorsPrev = prevConList[3]
+    areaPrev = prevConList[4]
+    dpiSet0Prev = prevConList[5]
+    scale0Prev = prevConList[6]
+    barbfactor0Prev = prevConList[7]
+    smoothingPrev = prevConList[8]
+    projectionInputPrev = prevConList[9]
+    
+
+if prevInput == 'y':
+    levelInput = input(f"> Input the map level you would like to create, or input 'surface' for a surface-level map [Prev: {levelInputPrev}]: ")
+else:
+    levelInput = input("> Input the map level you would like to create, or input 'surface' for a surface-level map: ")
+if (prevInput == 'y') and (levelInput == ''):
+    levelInput = levelInputPrev
 if levelInput != 'surface':
     level = int(levelInput)
 else:
     level = levelInput
 
-inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
+if prevInput == 'y':
+    inputDate = input(f"> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map [Prev: {inputDatePrev}]: ")
+else:
+    inputDate = input("> Input the map date in the format 'YYYY, MM, DD, HH', type 'today, HH', or type 'recent' for the most recent map: ")
+if (prevInput == 'y') and (inputDate == ''):
+    inputDate = inputDatePrev
+    
 if inputDate == 'recent':
     if currentTime.hour >= 18:
-        hour = 18
-    elif currentTime.hour >= 12:
         hour = 12
-    elif currentTime.hour >= 6:
+    elif currentTime.hour >= 12:
         hour = 6
-    else:
+    elif currentTime.hour >= 6:
         hour = 0
+    else:
+        hour = 18
+        currentTime = currentTime - timedelta(days=1)
     year = currentTime.year
     month = currentTime.month
     day = currentTime.day
@@ -62,55 +97,107 @@ daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
 timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{hour}Z"
 timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
 
-dTime = int(input("> Input the time delta: "))
-
+if prevInput == 'y':
+    dTime = input(f"> Input the time delta [default 0, Prev: {dTimePrev}]: ")
+else:
+    dTime = input("> Input the time delta [default 0]: ")
+if (prevInput == 'y') and (dTime == ''):
+    dTime = dTimePrev
+if (dTime == '') or (dTime == 'default'):
+    dTime = 0
+else:
+    dTime = int(dTime)
+    
 print('> "Supported inputs are:"')
-print('> "pressure"')
-print('> "pressure_heights"')
+print('> "pressure" (S)')
+print('> "pressure_heights" (!S)')
 print('> "temp_contours"')
 print('> "temp_fill"')
 print('> "barbs"')
-factors = input("> Select the map objects you would like to include, separated by ', ': ")
+if prevInput == 'y':
+    factors = input(f"> Select the map objects you would like to include, separated by ', ' [Prev: {factorsPrev}]: ")
+else:
+    factors = input("> Select the map objects you would like to include, separated by ', ': ")
+if (prevInput == 'y') and (factors == ''):
+    factors = factorsPrev
 factorsPart = factors.split(', ')
 plots_list = []
 
 
-area = input("> Select map area: ")
+if prevInput == 'y':
+    area = input(f"> Select map area [Prev: {areaPrev}]: ")
+else:
+    area = input("> Select map area: ")
+if (prevInput == 'y') and (area == ''):
+    area = areaPrev
 
-dpiSet0 = input("> Input map dpi [default 150]: ")
-if dpiSet0 == '':
+if prevInput == 'y':
+    dpiSet0 = input(f"> Input map dpi [default 150, Prev: {dpiSet0Prev}]: ")
+else:
+    dpiSet0 = input("> Input map dpi [default 150]: ")
+if (prevInput == 'y') and (dpiSet0 == ''):
+    dpiSet0 = dpiSet0Prev
+if (dpiSet0 == '') or (dpiSet0 == 'default'):
     dpiSet = 150
 else:
     dpiSet = dpiSet0
     
-scale0 = input("> Select the map scale [default 1.3]: ")
-if scale0 == '':
+if prevInput == 'y':
+    scale0 = input(f"> Select the map scale [default 1.3, Prev: {scale0Prev}]: ")
+else:
+    scale0 = input("> Select the map scale [default 1.3]: ")
+if (prevInput == 'y') and (scale0 == ''):
+    scale0 = scale0Prev
+if (scale0 == '') or (scale0 == 'default'):
     scale = 1.3
 else:
     scale = float(scale0)
 
 if "barbs" in factorsPart:
-    barbfactor0 = input("> Enter the barb reduction factor [default 3]: ")
-    if barbfactor0 == '':
+    if prevInput == 'y':
+        barbfactor0 = input(f"> Enter the barb reduction factor [default 3, Prev: {barbfactor0Prev}]: ")
+    else:
+        barbfactor0 = input("> Enter the barb reduction factor [default 3]: ")
+    if (prevInput == 'y') and (barbfactor0 == ''):
+        barbfactor0 == barbfactor0Prev
+    if (barbfactor0 == '') or (barbfactor0 == 'default'):
         barbfactor = 3
     else:
         barbfactor = int(barbfactor0)
 
 if ("temp_contours" in factorsPart) or ("pressure" in factorsPart) or ("pressure_heights" in factorsPart):
-    smoothing = input("> Enter the contour smoothing factor [default 0]: ")
-    if smoothing == '':
+    if prevInput == 'y':
+        smoothing = input(f"> Enter the contour smoothing factor [default 0, Prev: {smoothingPrev}]: ")
+    else:
+        smoothing = input("> Enter the contour smoothing factor [default 0]: ")
+    if (prevInput == 'y') and (smoothing == ''):
+        smoothing = smoothingPrev
+    if (smoothing == '') or (smoothing == 'default'):
         smoothing = 0
     else:
         smoothing = int(smoothing)
 
-projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
+if prevInput == 'y':
+    projectionInput = input(f"> Enter the code for the map projection you would like to use [default 'custom', Prev: {projectionInputPrev}]: ")
+else:
+    projectionInput = input("> Enter the code for the map projection you would like to use [default 'custom']: ")
+if (prevInput == 'y') and (projectionInput == ''):
+    projectionInput = projectionInputPrev
 
-saveQuery = input("> Would you like to 'save' this map? [y/n, default 'n']: ")
+saveQuery = input("> Would you like to 'save' this map? [y/n, default 'y']: ")
+if saveQuery != 'n':
+    saveQuery = 'y'
 if saveQuery == 'y':
     assigned = input("> Is this a map for an assignment? [y/n, default 'n']: ")
 else:
     assigned = 'n'
 
+# Handling the recent settings file
+if os.path.isfile("prevCon.txt"):
+    os.remove("prevCon.txt")
+with open("prevCon.txt", "x") as prev:
+    W = [f'{levelInput}\n', f'{inputDate}\n', f'{dTime}\n', f'{factors}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{barbfactor0}\n', f'{smoothing}\n', f'{projectionInput}\n']
+    prev.writelines(W)
 
 
 ds = xr.open_dataset('https://thredds.ucar.edu/thredds/dodsC/grib'
@@ -158,6 +245,17 @@ areaZero[3] = areaZero[3] * areaScaleA
 # Subset data to be just over the U.S. for plotting purposes
 ds = ds.sel(lat=slice(areaZero[3], areaZero[2]), lon=slice(areaZero[0], areaZero[1]))
 
+#minTemp = min(list(map(ds.Temperature_isobaric.values, int)))
+#maxTemp = max(list(map(ds.Temperature_isobaric.values, int)))
+#minDiffT = abs(0 - minTemp)
+#maxDiffT = abs(maxTemp - 0)
+#diffT = max(list(madDiffT, minDiffT))
+#rangeTH = 0 + diffT
+#rangeTL = 0 - diffT
+#rangeTH_F = 32 + (diffT * units.DegC).to('DegF')
+#rangeTL_F = 32 - (diffT * units.DegC).to('DegF')
+
+
 if level != 'surface':
     if (level == 975) or (level == 850) or (level == 700):
         steps = 30
@@ -184,11 +282,11 @@ if level != 'surface':
         temp_contours.field = 'Temperature_isobaric'
         temp_contours.level = level * units.hPa
         temp_contours.time = plot_time
-        temp_contours.contours = list(range(-150, 100, 5))
+        temp_contours.contours = list(range(-100, 100, 5))
         temp_contours.linecolor = 'red'
         temp_contours.linestyle = 'dashed'
         temp_contours.clabels = True
-        temp_contours.plot_units = 'degF'
+        temp_contours.plot_units = 'degC'
         temp_contours.smooth_contour = smoothing
         plots_list.append(temp_contours)
         
@@ -198,10 +296,10 @@ if level != 'surface':
         temp_fill.field = 'Temperature_isobaric'
         temp_fill.level = level * units.hPa
         temp_fill.time = plot_time
-        temp_fill.contours = list(range(-68, 132, 2))
+        temp_fill.contours = list(range(-100, 100, 1)) # rangeTL, rangeTH
         temp_fill.colormap = 'coolwarm'
         temp_fill.colorbar = 'horizontal'
-        temp_fill.plot_units = 'degF'
+        temp_fill.plot_units = 'degC'
         plots_list.append(temp_fill)
         
     # Add wind barbs
@@ -240,11 +338,25 @@ else:
         temp_fill.field = 'Temperature_height_above_ground'
         temp_fill.level = 2 * units.m
         temp_fill.time = plot_time
-        temp_fill.contours = list(range(-33, 108, 2))
+        temp_fill.contours = list(range(-68, 132, 2)) # rangeTL_F, rangeTH_F
         temp_fill.colormap = 'coolwarm'
         temp_fill.colorbar = 'horizontal'
         temp_fill.plot_units = 'degF'
         plots_list.append(temp_fill)
+        
+    if "temp_contours" in factorsPart:
+        temp_contours = declarative.ContourPlot()
+        temp_contours.data = ds
+        temp_contours.field = 'Temperature_height_above_ground'
+        temp_contours.level = 2 * units.m
+        temp_contours.time = plot_time
+        temp_contours.contours = list(range(-100, 100, 10))
+        temp_contours.linecolor = 'red'
+        temp_contours.linestyle = 'dashed'
+        temp_contours.clabels = True
+        temp_contours.plot_units = 'degF'
+        temp_contours.smooth_contour = smoothing
+        plots_list.append(temp_contours)
         
     # Set attributes for plotting wind barbs
     if "barbs" in factorsPart:
