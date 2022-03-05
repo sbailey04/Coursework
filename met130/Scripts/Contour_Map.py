@@ -3,7 +3,7 @@
 #    Automated Contour Map Generator Script    #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 02, 2022            #
+#        Last Revised: Mar 04, 2022            #
 #                                              #
 #          Created on Feb 22, 2022             #
 #                                              #
@@ -12,13 +12,22 @@
 from datetime import datetime, timedelta
 from metpy.plots import declarative
 from metpy.units import units
+import metpy.calc as mpcalc
 import xarray as xr
 import cartopy.crs as ccrs
 from collections import Counter
 import math
 import os
+import sys
 from PIL import Image
 
+#import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import matplotlib.pyplot as plt
+#import metpy.calc as mpcalc
+#from metpy.units import units
+import numpy as np
+#import xarray as xr
 
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
@@ -94,8 +103,22 @@ else:
         hour = parsedDate[3]
 inputTime = datetime(year, month, day, hour)
 daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
-timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{hour}Z"
+timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
 timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
+
+
+recentness = currentTime - inputTime
+if (recentness < timedelta(days=14)):
+    ds = xr.open_dataset('https://thredds.ucar.edu/thredds/dodsC/grib'f'/NCEP/GFS/Global_onedeg/GFS_Global_onedeg_{inputTime:%Y%m%d}_{inputTime:%H%M}.grib2').metpy.parse_cf()
+elif (inputTime >= datetime(2004, 3, 2)):
+    ds = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-g3-anl-files-old/'f'{inputTime:%Y%m/%Y%m%d}/gfsanl_3_{inputTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
+elif (inputTime >= datetime(1979, 1, 1)):
+    ds = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{inputTime:%Y%m/%Y%m%d}/narr-a_221_{inputTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
+else:
+    sys.exit(">!< The date you entered is out of range!")
+
+#ds = ds.metpy.parse_cf()
+
 
 if prevInput == 'y':
     dTime = input(f"> Input the time delta [default 0, Prev: {dTimePrev}]: ")
@@ -113,6 +136,7 @@ print('> "pressure" (S)')
 print('> "pressure_heights" (!S)')
 print('> "temp_contours"')
 print('> "temp_fill"')
+print('> "dew_contours"')
 print('> "barbs"')
 if prevInput == 'y':
     factors = input(f"> Select the map objects you would like to include, separated by ', ' [Prev: {factorsPrev}]: ")
@@ -153,6 +177,7 @@ if (scale0 == '') or (scale0 == 'default'):
 else:
     scale = float(scale0)
 
+barbfactor0 = ''
 if "barbs" in factorsPart:
     if prevInput == 'y':
         barbfactor0 = input(f"> Enter the barb reduction factor [default 3, Prev: {barbfactor0Prev}]: ")
@@ -165,7 +190,8 @@ if "barbs" in factorsPart:
     else:
         barbfactor = int(barbfactor0)
 
-if ("temp_contours" in factorsPart) or ("pressure" in factorsPart) or ("pressure_heights" in factorsPart):
+smoothing = ''
+if ("temp_contours" in factorsPart) or ("pressure" in factorsPart) or ("pressure_heights" in factorsPart) or ("dew_contours" in factorsPart):
     if prevInput == 'y':
         smoothing = input(f"> Enter the contour smoothing factor [default 0, Prev: {smoothingPrev}]: ")
     else:
@@ -197,11 +223,7 @@ if os.path.isfile("prevCon.txt"):
     os.remove("prevCon.txt")
 with open("prevCon.txt", "x") as prev:
     W = [f'{levelInput}\n', f'{inputDate}\n', f'{dTime}\n', f'{factors}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{barbfactor0}\n', f'{smoothing}\n', f'{projectionInput}\n']
-    prev.writelines(W)
-
-
-ds = xr.open_dataset('https://thredds.ucar.edu/thredds/dodsC/grib'
-                     f'/NCEP/GFS/Global_onedeg/GFS_Global_onedeg_{inputTime:%Y%m%d}_{inputTime:%H%M}.grib2')
+    prev.writelines(W)    
 
 
 # Set the plot time with forecast hours
@@ -241,9 +263,11 @@ if areaZero[1] < 0:
     areaZero[1] = 360 + (areaZero[1] * areaScaleB)
 areaZero[2] = areaZero[2] * areaScaleB
 areaZero[3] = areaZero[3] * areaScaleA
-
+latSlice = slice(areaZero[3], areaZero[2])
+lonSlice = slice(areaZero[0], areaZero[1])
 # Subset data to be just over the U.S. for plotting purposes
-ds = ds.sel(lat=slice(areaZero[3], areaZero[2]), lon=slice(areaZero[0], areaZero[1]))
+if (inputTime >= datetime(2004, 3, 2)):
+    ds = ds.sel(lat=latSlice, lon=lonSlice)
 
 #minTemp = min(list(map(ds.Temperature_isobaric.values, int)))
 #maxTemp = max(list(map(ds.Temperature_isobaric.values, int)))
@@ -289,6 +313,25 @@ if level != 'surface':
         temp_contours.plot_units = 'degC'
         temp_contours.smooth_contour = smoothing
         plots_list.append(temp_contours)
+        
+        
+    if "dew_contours" in factorsPart:
+        hPaLevel = level * units.hPa
+        tmpIsoSel = ds['Temperature_isobaric'].metpy.sel(vertical=hPaLevel)
+        rhIsoSel = ds['Relative_humidity_isobaric'].metpy.sel(vertical=hPaLevel)
+        ds['Dewpoint_isobaric'] = mpcalc.dewpoint_from_relative_humidity(tmpIsoSel, rhIsoSel)
+        dew_contours = declarative.ContourPlot()
+        dew_contours.data = ds
+        dew_contours.field = 'Dewpoint_isobaric'
+        dew_contours.level = level * units.hPa
+        dew_contours.time = plot_time
+        dew_contours.contours = list(range(-100, 100, 5))
+        dew_contours.linecolor = 'green'
+        dew_contours.linestyle = 'dashed'
+        dew_contours.clabels = True
+        dew_contours.plot_units = 'degC'
+        dew_contours.smooth_contour = smoothing
+        plots_list.append(dew_contours)
         
     if "temp_fill" in factorsPart:
         temp_fill = declarative.FilledContourPlot()
@@ -357,6 +400,20 @@ else:
         temp_contours.plot_units = 'degF'
         temp_contours.smooth_contour = smoothing
         plots_list.append(temp_contours)
+        
+    if "dew_contours" in factorsPart:
+        dew_contours = declarative.ContourPlot()
+        dew_contours.data = ds
+        dew_contours.field = 'Dewpoint_temperature_height_above_ground'
+        dew_contours.level = 2 * units.m
+        dew_contours.time = plot_time
+        dew_contours.contours = list(range(-100, 100, 10))
+        dew_contours.linecolor = 'green'
+        dew_contours.linestyle = 'dashed'
+        dew_contours.clabels = True
+        dew_contours.plot_units = 'degF'
+        dew_contours.smooth_contour = smoothing
+        plots_list.append(dew_contours)
         
     # Set attributes for plotting wind barbs
     if "barbs" in factorsPart:

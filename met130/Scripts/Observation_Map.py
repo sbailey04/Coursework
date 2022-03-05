@@ -3,7 +3,7 @@
 #  Automated Observation Map Generator Script  #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 02, 2022            #
+#        Last Revised: Mar 04, 2022            #
 #                                              #
 #         Created in late Jan, 2022            #
 #                                              #
@@ -113,6 +113,11 @@ inputTime = datetime(year, month, day, hour)
 daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
 timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
 timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
+
+
+if (inputTime < datetime(1931, 1, 2)):
+    sys.exit(">!< The date you entered is out of range!")
+
 
 dew = False
 if level != 'surface':
