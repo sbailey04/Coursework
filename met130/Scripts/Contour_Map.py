@@ -3,7 +3,7 @@
 #    Automated Contour Map Generator Script    #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 04, 2022            #
+#        Last Revised: Mar 06, 2022            #
 #                                              #
 #          Created on Feb 22, 2022             #
 #                                              #
@@ -20,40 +20,31 @@ import math
 import os
 import sys
 from PIL import Image
-
-#import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-import matplotlib.pyplot as plt
-#import metpy.calc as mpcalc
-#from metpy.units import units
-import numpy as np
-#import xarray as xr
+import json
 
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
 print(f"> It is currently {currentTime}Z")
 
-
 # User input
-prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
-if prevInput == 'y':
-    prevCon = open('prevCon.txt', 'r')
-    prevConStored = prevCon.readlines()
-    count = 0
-    prevConList = []
-    for line in prevConStored:
-        prevConList.append(line.strip())
-        count += 1
-    levelInputPrev = prevConList[0]
-    inputDatePrev = prevConList[1]
-    dTimePrev = prevConList[2]
-    factorsPrev = prevConList[3]
-    areaPrev = prevConList[4]
-    dpiSet0Prev = prevConList[5]
-    scale0Prev = prevConList[6]
-    barbfactor0Prev = prevConList[7]
-    smoothingPrev = prevConList[8]
-    projectionInputPrev = prevConList[9]
+prevInput = 'n'
+if os.path.isfile("Previous_Settings.json"):
+    with open("Previous_Settings.json", "r") as ps:
+        prevSet = json.load(ps)
+    if "Con" in prevSet:
+        prevConList = prevSet["Con"].split('; ')
+        prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
+        if prevInput == 'y':
+            levelInputPrev = prevConList[0]
+            inputDatePrev = prevConList[1]
+            dTimePrev = prevConList[2]
+            factorsPrev = prevConList[3]
+            areaPrev = prevConList[4]
+            dpiSet0Prev = prevConList[5]
+            scale0Prev = prevConList[6]
+            barbfactor0Prev = prevConList[7]
+            smoothingPrev = prevConList[8]
+            projectionInputPrev = prevConList[9]
     
 
 if prevInput == 'y':
@@ -219,11 +210,17 @@ else:
     assigned = 'n'
 
 # Handling the recent settings file
-if os.path.isfile("prevCon.txt"):
-    os.remove("prevCon.txt")
-with open("prevCon.txt", "x") as prev:
-    W = [f'{levelInput}\n', f'{inputDate}\n', f'{dTime}\n', f'{factors}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{barbfactor0}\n', f'{smoothing}\n', f'{projectionInput}\n']
-    prev.writelines(W)    
+if os.path.isfile("Previous_Settings.json") == False:
+    with open("Previous_Settings.json", "x") as newFile:
+        newFile.writelines(["{", "}"])
+
+with open("Previous_Settings.json", "r") as prevFile:
+    prev = json.load(prevFile)
+    
+prev["Con"] = f"{levelInput}; {inputDate}; {dTime}; {factors}; {area}; {dpiSet0}; {scale0}; {barbfactor0}; {smoothing}; {projectionInput}"
+
+with open ("Previous_Settings.json", "w") as prevFile:
+    json.dump(prev, prevFile)
 
 
 # Set the plot time with forecast hours
@@ -231,8 +228,11 @@ plot_time = inputTime + timedelta(hours=dTime)
 
 # Custom panel.area definitions
 panel = declarative.MapPanel()
-area_dictionary = {'USc':(-120, -74, 25, 50),
-                  'MW':(-94.5, -78.5, 35.5, 47)}
+
+with open("Custom_Area_Definitions.json", "r") as ad:
+    areaDict = json.load(ad)
+area_dictionary = dict(areaDict)
+area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
 
 # Panel for plot with Map features
 panel.layout = (1, 1, 1)

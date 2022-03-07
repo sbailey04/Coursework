@@ -1,10 +1,23 @@
-from metpy.plots import declarative
+################################################
+#                                              #
+#MetPy Panel Definition to Coordinate Converter#
+#                                              #
+#            Author: Sam Bailey                #
+#        Last Revised: Mar 06, 2022            #
+#                                              #
+#        Created in early Feb, 2022            #
+#                                              #
+################################################
+
+rom metpy.plots import declarative
 from collections import Counter
 
 area = input("> Input the postal code area you would like the coordinates for: ")
 
-area_dictionary = {'USc':(-120, -74, 25, 50),
-                  'MW':(-94.5, -78.5, 35.5, 47)}
+with open("Custom_Area_Definitions.json", "r") as ad:
+    areaDict = json.load(ad)
+area_dictionary = dict(areaDict)
+area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
 
 panel = declarative.MapPanel()
 simArea = area.replace("+", "")

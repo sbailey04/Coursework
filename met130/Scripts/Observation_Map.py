@@ -3,7 +3,7 @@
 #  Automated Observation Map Generator Script  #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 04, 2022            #
+#        Last Revised: Mar 06, 2022            #
 #                                              #
 #         Created in late Jan, 2022            #
 #                                              #
@@ -24,29 +24,29 @@ from collections import Counter
 import math
 import os
 from PIL import Image
+import json
 
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
 print(f"> It is currently {currentTime}Z")
 
 # User Input
-prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
-if prevInput == 'y':
-    prevObs = open('prevObs.txt', 'r')
-    prevObsStored = prevObs.readlines()
-    count = 0
-    prevObsList = []
-    for line in prevObsStored:
-        prevObsList.append(line.strip())
-        count += 1
-    levelInputPrev = prevObsList[0]
-    inputDatePrev = prevObsList[1]
-    dewPrev = prevObsList[2]
-    areaPrev = prevObsList[3]
-    dpiSet0Prev = prevObsList[4]
-    scale0Prev = prevObsList[5]
-    prfactor0Prev = prevObsList[6]
-    projectionInputPrev = prevObsList[7]
+prevInput = 'n'
+if os.path.isfile("Previous_Settings.json"):
+    with open("Previous_Settings.json", "r") as ps:
+        prevSet = json.load(ps)
+    if "Obs" in prevSet:
+        prevObsList = prevSet["Obs"].split('; ')
+        prevInput = input("> Would you like to use the previous entry [y/n, default 'n']: ")
+        if prevInput == 'y':
+            levelInputPrev = prevObsList[0]
+            inputDatePrev = prevObsList[1]
+            dewPrev = prevObsList[2]
+            areaPrev = prevObsList[3]
+            dpiSet0Prev = prevObsList[4]
+            scale0Prev = prevObsList[5]
+            prfactor0Prev = prevObsList[6]
+            projectionInputPrev = prevObsList[7]
     
         
         
@@ -191,12 +191,17 @@ else:
     assigned = 'n'
     
 # Handling the recent settings file
+if os.path.isfile("Previous_Settings.json") == False:
+    with open("Previous_Settings.json", "x") as newFile:
+        newFile.writelines(["{", "}"])
 
-if os.path.isfile("prevObs.txt"):
-    os.remove("prevObs.txt")
-with open("prevObs.txt", "x") as prev:
-    W = [f'{levelInput}\n', f'{inputDate}\n', f'{dew}\n', f'{area}\n', f'{dpiSet0}\n', f'{scale0}\n', f'{prfactor0}\n', f'{projectionInput}\n']
-    prev.writelines(W)
+with open("Previous_Settings.json", "r") as prevFile:
+    prev = json.load(prevFile)
+    
+prev["Obs"] = f"{levelInput}; {inputDate}; {dew}; {area}; {dpiSet0}; {scale0}; {prfactor0}; {projectionInput}"
+
+with open ("Previous_Settings.json", "w") as prevFile:
+    json.dump(prev, prevFile)
 
 
 # Read Data
@@ -261,8 +266,11 @@ obs.reduce_points = prfactor
 
 # Custom panel.area definitions
 panel = declarative.MapPanel()
-area_dictionary = {'USc':(-120, -74, 25, 50),
-                  'MW':(-94.5, -78.5, 35.5, 47)}
+
+with open("Custom_Area_Definitions.json", "r") as ad:
+    areaDict = json.load(ad)
+area_dictionary = dict(areaDict)
+area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
 
 # Panel for plot with Map features
 panel.layout = (1, 1, 1)
