@@ -14,9 +14,10 @@ from collections import Counter
 
 area = input("> Input the postal code area you would like the coordinates for: ")
 
-with open("Custom_Area_Definitions.json", "r") as ad:
-    areaDict = json.load(ad)
-area_dictionary = dict(areaDict)
+if os.path.isfile("config.json"):
+    with open("config.json", "r") as cfg:
+        config = json.load(cfg)
+area_dictionary = dict(config['areas'])
 area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
 
 panel = declarative.MapPanel()
