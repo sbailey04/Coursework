@@ -23,6 +23,7 @@ import pandas as pd
 from collections import Counter
 import math
 import os
+import sys
 from PIL import Image
 import json
 
@@ -355,8 +356,3 @@ else:
         save = Image.open(f'../Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
         save.show()
         os.remove(f'../Maps/{saveLocale}/{timestampNum}, {area} Surface Map, {dpiSet} DPI - Bailey, Sam.png')
-
-
-# Assorted other useful - or potentially useful - commands.
-# df.keys for the applicable displayable variables.
-# pc.show()
