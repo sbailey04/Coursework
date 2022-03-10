@@ -178,17 +178,6 @@ def inputChain():
 def save(name):
     namei = {"level":f"{loadedLevel}","date":f"{loadedDate}","delta":f"{loadedDelta}","factors":f"{loadedFactors}","area":f"{loadedArea}","dpi":f"{loadedDPI}","scale":f"{loadedScale}","prfactor":f"{loadedPRF}","barbfactor":f"{loadedBF}","smoothing":f"{loadedSmooth}","projection":f"{loadedProjection}"}
     config['presets'][f'{name}'] = namei
-    #config['presets'][f'{name}']["level"] = loadedLevel
-    #config['presets'][f'{name}']["date"] = loadedDate
-    #config['presets'][f'{name}']["delta"] = loadedDelta
-    #config['presets'][f'{name}']["factors"] = loadedFactors
-    #config['presets'][f'{name}']["area"] = loadedArea
-    #config['presets'][f'{name}']["dpi"] = loadedDPI
-    #config['presets'][f'{name}']["scale"] = loadedScale
-    #config['presets'][f'{name}']["prfactor"] = loadedPRF
-    #config['presets'][f'{name}']["barbfactor"] = loadedBF
-    #config['presets'][f'{name}']["smoothing"] = loadedSmooth
-    #config['presets'][f'{name}']["projection"] = loadedProjection
     with open("config.json", "w") as J:
         json.dump(config, J)
 
