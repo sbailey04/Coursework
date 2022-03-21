@@ -3,7 +3,7 @@
 #       Automated Map Generation Program       #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 10, 2022            #
+#        Last Revised: Mar 21, 2022            #
 #                Version 0.1                   #
 #                                              #
 #          Created on Mar 09, 2022             #
@@ -30,18 +30,30 @@ import sys
 from PIL import Image
 import json
 
-version = 0.1
+version = "0.1.0"
 
 # Opening the config file
 if os.path.isfile("config.json"):
     with open("config.json", "r") as cfg:
         config = json.load(cfg)
 
-print(f"<menu> You are using AMGP version {version}.")
-if float(config["config_ver"]) != version:
-    print(f"<warning> The loaded config file we found is of a different version ({config['config_ver']}).")
-else:
-    print("<menu> Config loaded.")
+# Version handler
+print(f"<menu> You are using AMGP version {version}")
+cfgver = config["config_ver"].split('.')
+amgpver = version.split('.')
+if config["config_ver"] != version:
+    if cfgver[0] > amgpver[0]:
+        sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
+    elif cfgver[0] < amgpver[0]:
+        sys.exit(f"<error> The config we found is out of date! Config version {config['config_ver']} found.")
+        # attempt to update the config in the future
+    elif cfgver[1] > amgpver[1]:
+        sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
+    elif cfgver[1] < amgpver[1]:
+        print(f"<warning> The loaded config file is of an earlier version ({config['config_ver']}), consider updating it.")
+    else:
+        print(f"<warning> The loaded config file we found is of a different compatible version version ({config['config_ver']}).")
+print("<menu> Config loaded.")
     
 # Retrieving and setting the current UTC time
 currentTime = datetime.utcnow()
@@ -77,6 +89,7 @@ def inputChain():
         print("<list> Type 'factors' to list accepted map factors.")
         print("<list> Type 'paste' to see the currently loaded values.")
         print("<list> Type 'edit {parameter} {value}' to edit a loaded parameter.")
+        print("<list> Type 'edit Factors {(optional) add/remove} {value}' to edit loaded factors.")
         print("<list> Type 'save {preset name}' to save the current settings as a preset.")
         print("<list> Type 'run' to run with the current settings.")
         print("<list> Type 'quit' to exit without running.")
@@ -128,10 +141,27 @@ def inputChain():
             if command[1] == "Factors":
                 blankFactors = []
                 count = 0
-                for item in command:
-                    if count > 1:
-                        blankFactors.append(command[count])
-                    count += 1
+                if command[2] == "add":
+                    blankFactors = loadedFactors.split(', ')
+                    for item in command:
+                        if count > 2:
+                            blankFactors.append(command[count])
+                        count += 1
+                elif command[2] == "remove":
+                    blankFactors = loadedFactors.split(', ')
+                    for item in command:
+                        if count > 2:
+                            if command[count] in blankFactors:
+                                blankFactors.pop(blankFactors.index(command[count]))
+                            else:
+                                print("<error> That is not a valid factor to remove!")
+                                inputChain()
+                        count += 1
+                else:
+                    for item in command:
+                        if count > 1:
+                            blankFactors.append(command[count])
+                        count += 1
                 fullFactors = ', '.join(blankFactors)
                 loadedFactors = fullFactors
             if command[1] == "Area":
@@ -174,13 +204,16 @@ def inputChain():
     else:
         print("<error> That is not a valid command!")
         inputChain()
+
         
+# Save a preset to the config file
 def save(name):
     namei = {"level":f"{loadedLevel}","date":f"{loadedDate}","delta":f"{loadedDelta}","factors":f"{loadedFactors}","area":f"{loadedArea}","dpi":f"{loadedDPI}","scale":f"{loadedScale}","prfactor":f"{loadedPRF}","barbfactor":f"{loadedBF}","smoothing":f"{loadedSmooth}","projection":f"{loadedProjection}"}
     config['presets'][f'{name}'] = namei
     with open("config.json", "w") as J:
         json.dump(config, J)
 
+# Load a preset from the config file
 def presetLoad(loadedPreset):
     global loadedLevel
     global loadedDate
@@ -205,6 +238,7 @@ def presetLoad(loadedPreset):
     loadedSmooth = config['presets'][f'{loadedPreset}']["smoothing"]
     loadedProjection = config['presets'][f'{loadedPreset}']["projection"]
     
+# Dump the loaded preset's contents
 def paste():
     print(f"<loaded> Level: {loadedLevel}")
     print(f"<loaded> Date: {loadedDate}")
@@ -218,6 +252,8 @@ def paste():
     print(f"<loaded> Smooth: {loadedSmooth}")
     print(f"<loaded> Projection: {loadedProjection}")
 
+    
+# The meat of the program
 def run(dosave, assigned):
     
     # Level
@@ -343,10 +379,11 @@ def run(dosave, assigned):
     # Panel Preparation
     panel = declarative.MapPanel()
     panel.layout = (1, 1, 1)
+    
+    # Parse custom zoom feature
     simArea = loadedArea.replace("+", "")
     simArea = simArea.replace("-", "")
     if simArea in area_dictionary:
-        # Parse custom zoom feature
         splitArea = Counter(loadedArea)
         factor = (splitArea['+']) - (splitArea['-'])
         scaleFactor = (1 - 2**-factor)/2
@@ -361,6 +398,7 @@ def run(dosave, assigned):
     else:
         panel.area = f'{loadedArea}'
 
+    # Figuring out the data display area
     areaZero = list(panel.area)
     areaScaleA = 1.1
     areaScaleB = 0.9
@@ -374,7 +412,9 @@ def run(dosave, assigned):
     lonSlice = slice(areaZero[0], areaZero[1])
     if (inputTime >= datetime(2004, 3, 2)):
         ds = ds.sel(lat=latSlice, lon=lonSlice)
+    
     panel.layers = ['states', 'coastline', 'borders']
+    
     # Parsing the panel.area into a list, and doing math on it.
     areaList = list(panel.area)
     areaMap = map(int, areaList)
@@ -496,24 +536,23 @@ def run(dosave, assigned):
             temp_contours.smooth_contour = loadedSmooth
             plotslist.append(temp_contours)
 
-#        Currently, this doesn't work.
-#        if "dew_contours" in factors:
-#            hPaLevel = level * units.hPa
-#            tmpIsoSel = ds['Temperature_isobaric'].metpy.sel(vertical=hPaLevel)
-#            rhIsoSel = ds['Relative_humidity_isobaric'].metpy.sel(vertical=hPaLevel)
-#            ds['Dewpoint_isobaric'] = mpcalc.dewpoint_from_relative_humidity(tmpIsoSel, rhIsoSel)
-#            dew_contours = declarative.ContourPlot()
-#            dew_contours.data = ds
-#            dew_contours.field = 'Dewpoint_isobaric'
-#            dew_contours.level = level * units.hPa
-#            dew_contours.time = plot_time
-#            dew_contours.contours = list(range(-100, 100, 5))
-#            dew_contours.linecolor = 'green'
-#            dew_contours.linestyle = 'dashed'
-#            dew_contours.clabels = True
-#            dew_contours.plot_units = 'degC'
-#            dew_contours.smooth_contour = loadedSmooth
-#            plotslist.append(dew_contours)
+        if "dew_contours" in factors:
+            hPaLevel = level * units.hPa
+            tmpIsoSel = ds['Temperature_isobaric'].metpy.sel(vertical=hPaLevel)
+            rhIsoSel = ds['Relative_humidity_isobaric'].metpy.sel(vertical=hPaLevel)
+            ds['Dewpoint_isobaric'] = mpcalc.dewpoint_from_relative_humidity(tmpIsoSel, rhIsoSel)
+            dew_contours = declarative.ContourPlot()
+            dew_contours.data = ds
+            dew_contours.field = 'Dewpoint_isobaric'
+            dew_contours.level = None
+            dew_contours.time = plot_time
+            dew_contours.contours = list(range(-100, 100, 5))
+            dew_contours.linecolor = 'green'
+            dew_contours.linestyle = 'dashed'
+            dew_contours.clabels = True
+            #dew_contours.plot_units = 'degC'
+            dew_contours.smooth_contours = loadedSmooth
+            plotslist.append(dew_contours)
         
         if "temp_fill" in factors:
             temp_fill = declarative.FilledContourPlot()
@@ -596,7 +635,7 @@ def run(dosave, assigned):
             barbs.time = plot_time
             barbs.field = ['u-component_of_wind_height_above_ground', 'v-component_of_wind_height_above_ground']
             barbs.level = 10 * units.m
-            barbs.skip = (int(barbfactor), int(barbfactor))
+            barbs.skip = (int(loadedBF), int(loadedBF))
             barbs.plot_units = 'knot'
             plotslist.append(barbs)
         
@@ -617,7 +656,7 @@ def run(dosave, assigned):
     pc.size = (scaledDiff, scaledDiff)
     pc.panels = [panel]
     
-    
+    # Saving the map
     if assigned:
         saveLocale = 'Assignment_Maps'
     else:
@@ -654,6 +693,9 @@ def run(dosave, assigned):
         os.remove(f'temp.png')
     
     inputChain()
+
+# --- End Definitions ---
+
 
 
 # Pre-running
