@@ -3,8 +3,8 @@
 #       Automated Map Generation Program       #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 21, 2022            #
-#                Version 0.1                   #
+#        Last Revised: Mar 25, 2022            #
+#                Version 0.1.0                 #
 #                                              #
 #          Created on Mar 09, 2022             #
 #                                              #
@@ -24,6 +24,7 @@ import metpy.calc as mpcalc
 import xarray as xr
 import pandas as pd
 from collections import Counter
+import numpy as np
 import math
 import os
 import sys
@@ -37,32 +38,16 @@ if os.path.isfile("config.json"):
     with open("config.json", "r") as cfg:
         config = json.load(cfg)
 
-# Version handler
-print(f"<menu> You are using AMGP version {version}")
-cfgver = config["config_ver"].split('.')
-amgpver = version.split('.')
-if config["config_ver"] != version:
-    if cfgver[0] > amgpver[0]:
-        sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
-    elif cfgver[0] < amgpver[0]:
-        sys.exit(f"<error> The config we found is out of date! Config version {config['config_ver']} found.")
-        # attempt to update the config in the future
-    elif cfgver[1] > amgpver[1]:
-        sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
-    elif cfgver[1] < amgpver[1]:
-        print(f"<warning> The loaded config file is of an earlier version ({config['config_ver']}), consider updating it.")
-    else:
-        print(f"<warning> The loaded config file we found is of a different compatible version version ({config['config_ver']}).")
-print("<menu> Config loaded.")
     
 # Retrieving and setting the current UTC time
-currentTime = datetime.utcnow()
-print(f"<menu> It is currently {currentTime}Z")
-
-area_dictionary = dict(config['areas'])
-area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
-
-possibleFactors = ["loadedLevel", "loadedDate", "loadedDelta", "loadedFactors", "loadedArea", "loadedDPI", "loadedScale", "loadedPRF", "loadedBF", "loadedSmooth", "loadedProjection"]
+def setTime():
+    global currentTime
+    currentTime = datetime.utcnow()
+    
+def getTime():
+    global currentTime
+    currentTime = datetime.utcnow()
+    print(f"<time> It is currently {currentTime}Z")
 
 # Definitions
 def inputChain():
@@ -84,6 +69,7 @@ def inputChain():
     command = comm.split(" ")
     
     if command[0] == "list":
+        print("<list> Type 'time' to set and print the current time.")
         print("<list> Type 'preset {name}' to load a map preset.")
         print("<list> Type 'preset list' to list available presets.")
         print("<list> Type 'factors' to list accepted map factors.")
@@ -95,7 +81,11 @@ def inputChain():
         print("<list> Type 'quit' to exit without running.")
         inputChain()
     
-    if command[0] == 'preset':
+    
+    if command[0] == 'time':
+        getTime()
+        inputChain()
+    elif command[0] == 'preset':
         if command[1] == 'list':
             keys = str(list(config['presets'].keys()))
             print("<presets> Below is the list of all currently loaded presets:")
@@ -251,10 +241,118 @@ def paste():
     print(f"<loaded> BF (Barb Factor): {loadedBF}")
     print(f"<loaded> Smooth: {loadedSmooth}")
     print(f"<loaded> Projection: {loadedProjection}")
+    
+    
+class Time(object):
+    def __init__(self, loadedDate, level):
+            currentTimeGridded = currentTime
+            griddedHour = 0
+            hour = 0
+            if loadedDate == 'recent':
+                if level == 'surface':
+                    if currentTime.hour >= 21:
+                        hour = 21
+                        griddedHour = 12
+                    elif currentTime.hour >= 18:
+                        hours = 18
+                        griddedHour = 12
+                    elif currentTime.hour >= 15:
+                        hour = 15
+                        griddedHour = 6
+                    elif currentTime.hour >= 12:
+                        hour = 12
+                        griddedHour = 6
+                    elif currentTime.hour >= 9:
+                        hour = 9
+                        griddedHour = 0
+                    elif currentTime.hour >= 6:
+                        hour = 6
+                        griddedHour = 0
+                    elif currentTime.hour >= 3:
+                        hour = 3
+                        griddedHour = 18
+                        currentTimeGridded = currentTime - timedelta(days=1)
+                    else:
+                        hour = 0
+                        griddedHour = 18
+                        currentTimeGridded = currentTime - timedelta(days=1)
+                else:
+                    if currentTime.hour >= 12:
+                        hour = 12
+                        griddedHour = hour
+                    else:
+                        hour = 0
+                        griddedHour = hour
+                year = currentTime.year
+                month = currentTime.month
+                day = currentTime.day
+                inputTime = datetime(year, month, day, hour)
+                inputTimeGridded = datetime(currentTimeGridded.year, currentTimeGridded.month, currentTimeGridded.day, griddedHour)
+            else:
+                parseDate1 = list(loadedDate.split(", "))
+                if parseDate1[0] == 'today':
+                    year = currentTime.year
+                    month = currentTime.month
+                    day = currentTime.day
+                    hour = int(parseDate1[1])
+                else:
+                    parseDate2 = map(int, parseDate1)
+                    parsedDate = list(parseDate2)
+                    year = parsedDate[0]
+                    month = parsedDate[1]
+                    day = parsedDate[2]
+                    hour = parsedDate[3]
+                inputTime = datetime(year, month, day, hour)
+                inputTimeGridded = datetime(year, month, day, hour)
+            daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
+            timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
+            timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
+            
+            self.T = inputTime
+            self.GT = inputTimeGridded
+            self.ds = daystamp
+            self.tsnum = timestampNum
+            self.tsalp = timestampAlp
+
+            if (inputTime < datetime(1931, 1, 2)):
+                sys.exit("<error> The date you entered is out of range!")
+            elif (inputTime < datetime(1979, 1, 1)):
+                print("<warning> The date you entered is out of range for gridded data.")
+                gridRange = False
+    
+    def Time(self):
+        return self.T
+    
+    def GriddedTime(self):
+        return self.GT
+    
+    def Daystamp(self):
+        return self.ds
+    
+    def NumericalTS(self):
+        return self.tsnum
+    
+    def AlphanumericTS(self):
+        return self.tsalp
+
+def ParseTime(string, level):
+    return Time(string, level)
 
     
 # The meat of the program
-def run(dosave, assigned):
+def run(dosave, assigned, **qrOverride):
+    
+    global loadedLevel
+    global loadedDelta
+    # Handle quickrun overrides
+    for k in qrOverride:
+        if k == "date":
+            heldTime = qrOverride[k]
+        if k == "fcHour":
+            loadedDelta = qrOverride[k]
+        if k == "level":
+            loadedLevel = qrOverride[k]
+    
     
     # Level
     if loadedLevel != 'surface':
@@ -263,69 +361,14 @@ def run(dosave, assigned):
         level = loadedLevel
         
     # Date
-    currentTimeGridded = currentTime
-    griddedHour = 0
-    if loadedDate == 'recent':
-        if level == 'surface':
-            if currentTime.hour >= 21:
-                hour = 21
-                griddedHour = 12
-            elif currentTime.hour >= 18:
-                hour = 18
-                griddedHour = 12
-            elif currentTime.hour >= 15:
-                hour = 15
-                griddedHour = 6
-            elif currentTime.hour >= 12:
-                hour = 12
-                griddedHour = 6
-            elif currentTime.hour >= 9:
-                hour = 9
-                griddedHour = 0
-            elif currentTime.hour >= 6:
-                hour = 6
-                griddedHour = 0
-            elif currentTime.hour >= 3:
-                hour = 3
-                griddedHour = 18
-                currentTimeGridded = currentTime - timedelta(days=1)
-            else:
-                hour = 0
-                griddedHour = 18
-                currentTimeGridded = currentTime - timedelta(days=1)
-        else:
-            if currentTime.hour >= 12:
-                hour = 12
-            else:
-                hour = 0
-        year = currentTime.year
-        month = currentTime.month
-        day = currentTime.day
-    else:
-        parseDate1 = list(loadedDate.split(", "))
-        if parseDate1[0] == 'today':
-            year = currentTime.year
-            month = currentTime.month
-            day = currentTime.day
-            hour = int(parseDate1[1])
-        else:
-            parseDate2 = map(int, parseDate1)
-            parsedDate = list(parseDate2)
-            year = parsedDate[0]
-            month = parsedDate[1]
-            day = parsedDate[2]
-            hour = parsedDate[3]
-    inputTime = datetime(year, month, day, hour)
-    inputTimeGridded = datetime(currentTimeGridded.year, currentTimeGridded.month, currentTimeGridded.day, griddedHour)
-    daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
-    timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
-    timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
-    
-    if (inputTime < datetime(1931, 1, 2)):
-        sys.exit("<error> The date you entered is out of range!")
-    elif (inputTime < datetime(1979, 1, 1)):
-        print("<warning> The date you entered is out of range for gridded data.")
-        gridRange = False
+    if (quickRun != True) or ('date' not in qrOverride):
+        heldTime = ParseTime(loadedDate, level)
+    inputTime = heldTime.T
+    inputTimeGridded = heldTime.GT
+    daystamp = heldTime.ds
+    timestampNum = heldTime.tsnum
+    timestampAlp = heldTime.tsalp
+    year = inputTime.year
         
     # Level-based formatting
     mslp_formatter = lambda v: format(v*10, '.0f')[-3:]
@@ -333,19 +376,18 @@ def run(dosave, assigned):
     if level != 'surface':
         if (level == 975) or (level == 850) or (level == 700):
             height_format = lambda v: format(v, '.0f')[1:]
-        elif (level == 500) or (level == 300):
+            steps = 30
+        elif level == 500:
             height_format = lambda v: format(v, '.0f')[:-1]
+            steps = 60
+        elif level == 300:
+            height_format = lambda v: format(v, '.0f')[:-1]
+            steps = 120
         elif level == 200:
             height_format = lambda v: format(v, '.0f')[1:-1]
-    
-    if level != 'surface':
-        if (level == 975) or (level == 850) or (level == 700):
-            steps = 30
-        elif (level == 500):
-            steps = 60
-        elif (level == 300) or (level == 200):
             steps = 120
     
+
     # Data Acquisition
     recentness = currentTime - inputTime
     if level == 'surface':
@@ -374,7 +416,7 @@ def run(dosave, assigned):
     elif (inputTime >= datetime(1979, 1, 1)):
         ds = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{inputTimeGridded:%Y%m/%Y%m%d}/narr-a_221_{inputTimeGridded:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
         
-    plot_time = inputTime + timedelta(hours=int(loadedDelta))
+    plot_time = inputTimeGridded + timedelta(hours=int(loadedDelta))
     
     # Panel Preparation
     panel = declarative.MapPanel()
@@ -519,7 +561,7 @@ def run(dosave, assigned):
             pressure_heights.time = plot_time
             pressure_heights.contours = list(range(0, 12000, steps))
             pressure_heights.clabels = True
-            pressure_heights.smooth_contour = loadedSmooth
+            pressure_heights.smooth_contour = int(loadedSmooth)
             plotslist.append(pressure_heights)
     
         if "temp_contours" in factors:
@@ -533,7 +575,7 @@ def run(dosave, assigned):
             temp_contours.linestyle = 'dashed'
             temp_contours.clabels = True
             temp_contours.plot_units = 'degC'
-            temp_contours.smooth_contour = loadedSmooth
+            temp_contours.smooth_contour = int(loadedSmooth)
             plotslist.append(temp_contours)
 
         if "dew_contours" in factors:
@@ -551,7 +593,7 @@ def run(dosave, assigned):
             dew_contours.linestyle = 'dashed'
             dew_contours.clabels = True
             #dew_contours.plot_units = 'degC'
-            dew_contours.smooth_contours = loadedSmooth
+            dew_contours.smooth_contours = int(loadedSmooth)
             plotslist.append(dew_contours)
         
         if "temp_fill" in factors:
@@ -586,7 +628,7 @@ def run(dosave, assigned):
             pressure.contours = list(range(0, 2000, 4))
             pressure.clabels = True
             pressure.plot_units = 'hPa'
-            pressure.smooth_contour = loadedSmooth
+            pressure.smooth_contour = int(loadedSmooth)
             plotslist.append(pressure)
         
         if "temp_fill" in factors:
@@ -612,7 +654,7 @@ def run(dosave, assigned):
             temp_contours.linestyle = 'dashed'
             temp_contours.clabels = True
             temp_contours.plot_units = 'degF'
-            temp_contours.smooth_contour = loadedSmooth
+            temp_contours.smooth_contour = int(loadedSmooth)
             plotslist.append(temp_contours)
             
         if "dew_contours" in factors:
@@ -626,7 +668,7 @@ def run(dosave, assigned):
             dew_contours.linestyle = 'dashed'
             dew_contours.clabels = True
             dew_contours.plot_units = 'degF'
-            dew_contours.smooth_contour = loadedSmooth
+            dew_contours.smooth_contour = int(loadedSmooth)
             plotslist.append(dew_contours)
             
         if "gridded_barbs" in factors:
@@ -671,35 +713,126 @@ def run(dosave, assigned):
             if level != 'surface':
                 pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
                 save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
-                save.show()
+                if noShow == False:
+                    save.show()
             else:
                 pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
                 save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
-                save.show()
+                if noShow == False:
+                    save.show()
         else:
             if level != 'surface':
                 pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
                 save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb Map, {loadedDPI} DPI - Bailey, Sam.png')
-                save.show()
+                if noShow == False:
+                    save.show()
             else:
                 pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} Surface Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
                 save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} Surface Map, {loadedDPI} DPI - Bailey, Sam.png')
-                save.show()
+                if noShow == False:
+                    save.show()
         print("<run> Map successfully saved!")
     else:
-        pc.save(f'temp.png', dpi=dpiSet, bbox_inches='tight')
+        pc.save(f'temp.png', dpi=int(loadedDPI), bbox_inches='tight')
         save = Image.open(f'temp.png')
-        save.show()
+        if noShow == False:
+            save.show()
         os.remove(f'temp.png')
     
-    inputChain()
+    if quickRun != True:
+        inputChain()
 
 # --- End Definitions ---
 
 
 
-# Pre-running
-presetLoad('default')
-paste()
+# Init
+area_dictionary = dict(config['areas'])
+area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictionary.items()}
 
-inputChain()
+possibleFactors = ["loadedLevel", "loadedDate", "loadedDelta", "loadedFactors", "loadedArea", "loadedDPI", "loadedScale", "loadedPRF", "loadedBF", "loadedSmooth", "loadedProjection"]
+
+# Check for quickrun commands
+if len(sys.argv) > 1:
+    global quickRun
+    global noShow
+    noShow = False
+    dosave = False
+    assigned = False
+    allLevels = False
+    levels = ["surface", 850, 500, 300, 200]
+    #dates
+    overrides = {}
+    overrides.update({"fcloop":0})
+    overrides.update({"fcHour":0})
+    setTime()
+    if sys.argv[1] == "--quickrun":
+        presetLoad('default')
+        quickRun = True
+        i = 2
+        while i < len(sys.argv):
+            if sys.argv[i] == "--preset":
+                presetLoad(f'{sys.argv[i + 1]}')
+            if sys.argv[i] == "-s":
+                dosave = True
+            if sys.argv[i] == "-a":
+                assigned = True
+            if sys.argv[i] == "--fchour":
+                overrides.update({"fcHour":f"{sys.argv[i + 1]}"})
+            if sys.argv[i] == "--level":
+                overrides.update({"level":f"{sys.argv[i + 1]}"})
+            if sys.argv[i] == "-allevels":
+                allLevels = True
+            if sys.argv[i] == "--fcloop":
+                overrides.update({"fcloop":int(sys.argv[i + 1])})
+            if sys.argv[i] == "--dloop":
+                overrides.update({"dloop":int(sys.argv[i + 1])})
+            if sys.argv[i] == "-ns":
+                noShow = True
+            if sys.argv[i] == "--date":
+                overrides.update({"date":f"{ParseTime(sys.argv[i + 1], level)}"})
+            i += 1
+            
+        while np.sign(overrides['fcloop']) == 1:
+            if allLevels:
+                for lvl in levels:
+                    overrides.update({"level":f"{lvl}"})
+                    run(dosave, assigned, **overrides)
+            else:
+                run(dosave, assigned, **overrides)
+            overrides.update({"fcHour":(int(overrides['fcHour']) + 6)})
+            overrides.update({"fcloop":(int(overrides['fcloop']) - 1)})
+        if np.sign(overrides['fcloop']) == 0:
+            if allLevels:
+                for lvl in levels:
+                    overrides.update({"level":f"{lvl}"})
+                    run(dosave, assigned, **overrides)
+            else:
+                run(dosave, assigned, **overrides)
+        
+    sys.exit()
+else:
+    # Version handler
+    print(f"<menu> You are using AMGP version {version}")
+    cfgver = config["config_ver"].split('.')
+    amgpver = version.split('.')
+    if config["config_ver"] != version:
+        if cfgver[0] > amgpver[0]:
+            sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
+        elif cfgver[0] < amgpver[0]:
+            sys.exit(f"<error> The config we found is out of date! Config version {config['config_ver']} found.")
+            # attempt to update the config in the future
+        elif cfgver[1] > amgpver[1]:
+            sys.exit(f"<error> Your installed AMGP version is out of date! Config version {config['config_ver']} found.")
+        elif cfgver[1] < amgpver[1]:
+            print(f"<warning> The loaded config file is of an earlier version ({config['config_ver']}), consider updating it.")
+        else:
+            print(f"<warning> The loaded config file we found is of a different compatible version version ({config['config_ver']}).")
+    print("<menu> Config loaded.")
+
+    # Pre-running
+    getTime()
+    presetLoad('default')
+    paste()
+
+    inputChain()
