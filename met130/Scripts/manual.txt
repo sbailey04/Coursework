@@ -1,0 +1,101 @@
+---- internal help command output ----
+<manual>
+################################################
+# New_Map.py, AMGP Version 0.1.0 Manual:       #
+#                                              #
+# Run                                          #
+# >>> python New_Map.py                        #
+# to start the program in its default mode.    #
+# The default preset from config.json will be  #
+# loaded, and the loaded settings will be      #
+# displayed. Type 'list' to see the accepted   #
+# commands to go from there within the         #
+# program.                                     #
+#                                              #
+# Alternatively, run                           #
+# >>> python New_Map.py --quickrun {args}      #
+# to create a singular map, or loop of maps,   #
+# without opening the program.                 #
+# >>> python New_Map.py -help                  #
+# will print all accepted arguments and their  #
+# usages to console.                           #
+################################################
+</manual>
+
+---- startup help argument output ----
+################################################
+# New_Map.py, AMGP Version 0.1.0 Quickrun Help #
+#                                              #
+# Each command following is an argument which  #
+# may follow                                   #
+# >>> python New_Map.py                        #
+# in the console line:                         #
+#                                              #
+# --quickrun                                   #
+# This command initiates the QuickRun feature, #
+# allowing for the creation of maps via        #
+# specified override parameters or presets, to #
+# be specified in later arguments. This arg    #
+# must come first.                             #
+#                                              #
+# --preset {preset_name}                       #
+# This command loads a preset from config.json #
+# to provide defaults to override. If this arg #
+# is not provided, 'default' is used.          #
+#                                              #
+# --fchour {int hour}                          #
+# This command specifies the forecast hour to  #
+# display for the applicable model. Only works #
+# on gridded data. Defaults to '0'.            #
+#                                              #
+# --fcloop {int iterations}                    #
+# This command selects the number of forecast  #
+# runs in the future to pull. Only works on    #
+# gridded data. Only accepts positive ints.    #
+# Defaults to '0'.                             #
+#                                              #
+# --level {level(s)}                           #
+# This command specifies which level(s) to     #
+# create maps for. Accepts either a singular   #
+# level, or multiple levels separated by ', '  #
+# and surrounded by '"'. Accepts 'surface',    #
+# '850', '500', '300', and '200'. Defaults to  #
+# 'surface'.                                   #
+#                                              #
+# -allevels                                    #
+# This command overrides --levels, and plots   #
+# all five available levels.                   #
+#                                              #
+# --date {formatted date}                      #
+# This command selects a base date to start    #
+# from and plot for all other commands.        #
+# Accepts 'recent', 'today, HH', or            #
+# 'YYYY, MM, DD, HH'. Defaults to 'recent'.    #
+#                                              #
+# --dloop {int iterations}                     #
+# This command selects the number of dates to  #
+# map on either side of the selected date.     #
+# Defaults to '0'.                             #
+#                                              #
+# --jump {int hours}                           #
+# This command selects the number of hours     #
+# between each map, in conjunction with        #
+# --dloop. Defaults to '6'.                    #
+#                                              #
+# --factors {factors}                          #
+# This command specifies the factors to plot.  #
+# Accepts factors separated by ', ' and        #
+# surrounded by '"'.                           #
+#                                              #
+# -s                                           #
+# This command designates the map to be saved. #
+#                                              #
+# -a                                           #
+# This command designates the map as an        #
+# assignment map.                              #
+#                                              #
+# -ns                                          #
+# This command instructs the computer not to   #
+# show the map. Most useful when making many   #
+# at the same time.                            #
+################################################

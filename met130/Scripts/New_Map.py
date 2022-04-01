@@ -3,11 +3,35 @@
 #       Automated Map Generation Program       #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Mar 25, 2022            #
+#        Last Revised: Mar 29, 2022            #
 #                Version 0.1.0                 #
 #                                              #
 #          Created on Mar 09, 2022             #
 #                                              #
+################################################
+
+################################################
+# New_Map.py, AMGP Version 0.1.0 Manual:       #
+#                                              #
+# This program creates .png weather maps from  #
+# current, past, and model data from various   #
+# sources.                                     #
+# Run                                          #
+# >>> python New_Map.py                        #
+# to start the program in its default mode.    #
+# The default preset from config.json will be  #
+# loaded, and the loaded settings will be      #
+# displayed. Type 'list' to see the accepted   #
+# commands to go from there within the         #
+# program.                                     #
+#                                              #
+# Alternatively, run                           #
+# >>> python New_Map.py --quickrun {args}      #
+# to create a singular map, or loop of maps,   #
+# without opening the program.                 #
+# >>> python New_Map.py -help                  #
+# will print all accepted arguments and their  #
+# usages to console.                           #
 ################################################
 
 from datetime import datetime, timedelta
@@ -37,6 +61,12 @@ version = "0.1.0"
 if os.path.isfile("config.json"):
     with open("config.json", "r") as cfg:
         config = json.load(cfg)
+        
+if os.path.isfile("manual.txt"):
+    with open("manual.txt", "r") as man:
+        manual = man.readlines()
+else:
+    manual = ['Manual not found...']
 
     
 # Retrieving and setting the current UTC time
@@ -63,10 +93,18 @@ def inputChain():
     global loadedSmooth
     global loadedProjection
     
-    print("<menu> Input commands. For a list of commands, type 'list'.")
+    print("<menu> Input commands, or type 'help'.")
     comm = input("<input> ")
     
     command = comm.split(" ")
+    
+    if command[0] == "help":
+        for line in list(range(1, 23, 1)):
+            if line != 22:
+                print(manual[line], end='')
+            else:
+                print(manual[line])
+        inputChain()
     
     if command[0] == "list":
         print("<list> Type 'time' to set and print the current time.")
@@ -303,7 +341,15 @@ class Time(object):
                     day = parsedDate[2]
                     hour = parsedDate[3]
                 inputTime = datetime(year, month, day, hour)
-                inputTimeGridded = datetime(year, month, day, hour)
+                if hour >= 18:
+                    griddedHour = 18
+                elif hour >= 12:
+                    griddedHour = 12
+                elif hour >= 6:
+                    griddedHour = 6
+                elif hour >= 0:
+                    griddedHour = 0
+                inputTimeGridded = datetime(year, month, day, griddedHour)
             daystamp = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}"
             timestampNum = f"{year}-{inputTime.strftime('%m')}-{inputTime.strftime('%d')}-{inputTime.strftime('%H')}Z"
             timestampAlp = f"{inputTime.strftime('%b')} {day}, {year} - {hour}Z"
@@ -338,12 +384,18 @@ class Time(object):
 def ParseTime(string, level):
     return Time(string, level)
 
+def FromDatetime(datetimeObj, level):
+        loadedTimeFormat = f"{datetimeObj.year}, {datetimeObj.month}, {datetimeObj.day}, {datetimeObj.hour}"
+        newTime = ParseTime(loadedTimeFormat, level)
+        return newTime
+
     
 # The meat of the program
 def run(dosave, assigned, **qrOverride):
     
     global loadedLevel
     global loadedDelta
+    global loadedFactors
     # Handle quickrun overrides
     for k in qrOverride:
         if k == "date":
@@ -351,8 +403,11 @@ def run(dosave, assigned, **qrOverride):
         if k == "fcHour":
             loadedDelta = qrOverride[k]
         if k == "level":
-            loadedLevel = qrOverride[k]
+            loadedLevel = qrOverride[k][0]
+        if k == 'factors':
+            loadedFactors = qrOverride[k]
     
+    loadedDelta = int(loadedDelta)
     
     # Level
     if loadedLevel != 'surface':
@@ -416,7 +471,11 @@ def run(dosave, assigned, **qrOverride):
     elif (inputTime >= datetime(1979, 1, 1)):
         ds = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{inputTimeGridded:%Y%m/%Y%m%d}/narr-a_221_{inputTimeGridded:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
         
-    plot_time = inputTimeGridded + timedelta(hours=int(loadedDelta))
+        ds['wind_speed_isobaric'] = mpcalc.wind_speed(ds['u-component_of_wind_isobaric'], ds['v-component_of_wind_isobaric'])
+        ds['wind_speed_height_above_ground'] = mpcalc.wind_speed(ds['u-component_of_wind_height_above_ground'], ds['v-component_of_wind_height_above_ground'])
+        
+        
+    plot_time = inputTimeGridded + timedelta(hours=loadedDelta)
     
     # Panel Preparation
     panel = declarative.MapPanel()
@@ -607,6 +666,18 @@ def run(dosave, assigned, **qrOverride):
             temp_fill.colorbar = 'horizontal'
             temp_fill.plot_units = 'degC'
             plotslist.append(temp_fill)
+            
+        if "wind_speed_fill" in factors:
+            wind_speed_fill = declarative.FilledContourPlot()
+            wind_speed_fill.data = ds
+            wind_speed_fill.field = 'wind_speed_isobaric'
+            wind_speed_fill.level = level * units.hPa
+            wind_speed_fill.time = plot_time
+            wind_speed_fill.contours = list(range(10, 201, 20))
+            wind_speed_fill.colormap = 'BuPu'
+            wind_speed_fill.colorbar = 'horizontal'
+            wind_speed_fill.plot_units = 'knot'
+            plotslist.append(wind_speed_fill)
         
         if "gridded_barbs" in factors:
             barbs = declarative.BarbPlot()
@@ -671,6 +742,18 @@ def run(dosave, assigned, **qrOverride):
             dew_contours.smooth_contour = int(loadedSmooth)
             plotslist.append(dew_contours)
             
+        if "wind_speed_fill" in factors:
+            wind_speed_fill = declarative.FilledContourPlot()
+            wind_speed_fill.data = ds
+            wind_speed_fill.field = 'wind_speed_height_above_ground'
+            wind_speed_fill.level = 10 * units.m
+            wind_speed_fill.time = plot_time
+            wind_speed_fill.contours = list(range(10, 201, 20))
+            wind_speed_fill.colormap = 'BuPu'
+            wind_speed_fill.colorbar = 'horizontal'
+            wind_speed_fill.plot_units = 'knot'
+            plotslist.append(wind_speed_fill)
+            
         if "gridded_barbs" in factors:
             barbs = declarative.BarbPlot()
             barbs.data = ds
@@ -711,13 +794,13 @@ def run(dosave, assigned, **qrOverride):
             os.mkdir(f'../Maps/{saveLocale}/{daystamp}')
         if (count > 1):
             if level != 'surface':
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
             else:
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
         else:
@@ -752,22 +835,31 @@ area_dictionary = {k: tuple(map(float, v.split(", "))) for k, v in area_dictiona
 
 possibleFactors = ["loadedLevel", "loadedDate", "loadedDelta", "loadedFactors", "loadedArea", "loadedDPI", "loadedScale", "loadedPRF", "loadedBF", "loadedSmooth", "loadedProjection"]
 
+global quickRun
+global noShow
+quickRun = False
+noShow = False
+
 # Check for quickrun commands
 if len(sys.argv) > 1:
-    global quickRun
-    global noShow
     noShow = False
     dosave = False
     assigned = False
     allLevels = False
-    levels = ["surface", 850, 500, 300, 200]
-    #dates
+    allevels = ["surface", 850, 500, 300, 200]
+    levels = []
+    fchours = [0]
+    dates = [0]
+    jump = 6
     overrides = {}
     overrides.update({"fcloop":0})
+    overrides.update({"dloop":0})
     overrides.update({"fcHour":0})
     setTime()
     if sys.argv[1] == "--quickrun":
         presetLoad('default')
+        overrides.update({"level":"surface"})
+        basedate = ParseTime("recent", "surface").T
         quickRun = True
         i = 2
         while i < len(sys.argv):
@@ -780,35 +872,49 @@ if len(sys.argv) > 1:
             if sys.argv[i] == "--fchour":
                 overrides.update({"fcHour":f"{sys.argv[i + 1]}"})
             if sys.argv[i] == "--level":
-                overrides.update({"level":f"{sys.argv[i + 1]}"})
+                levels.append(sys.argv[i + 1].replace('"', '').split(', '))
             if sys.argv[i] == "-allevels":
-                allLevels = True
+                levels = allevels
             if sys.argv[i] == "--fcloop":
                 overrides.update({"fcloop":int(sys.argv[i + 1])})
             if sys.argv[i] == "--dloop":
                 overrides.update({"dloop":int(sys.argv[i + 1])})
+            if sys.argv[i] == "--jump":
+                jump = sys.argv[i + 1]
             if sys.argv[i] == "-ns":
                 noShow = True
             if sys.argv[i] == "--date":
-                overrides.update({"date":f"{ParseTime(sys.argv[i + 1], level)}"})
+                basedate = ParseTime(sys.argv[i + 1], overrides['level']).T
+            if sys.argv[i] == "--factors":
+                overrides.update({"factors":sys.argv[i + 1].replace('"', '')})
             i += 1
+        
+        while overrides['fcloop'] >= 1:
+            fchours.append(overrides['fcloop'] * 6)
+            overrides.update({"fcloop":(overrides['fcloop'] - 1)})
             
-        while np.sign(overrides['fcloop']) == 1:
-            if allLevels:
+        while overrides['dloop'] >= 1:
+            dates.append(overrides['dloop'] * jump)
+            overrides.update({"dloop":(overrides['dloop'] - 1)})
+            
+        while overrides['dloop'] <= 1:
+            dates.append(overrides['dloop'] * jump)
+            overrides.update({"dloop":(overrides['dloop'] + 1)})
+        
+        for fch in fchours:
+            for dt in dates:
                 for lvl in levels:
-                    overrides.update({"level":f"{lvl}"})
+                    overrides.update({'fcHour':fch})
+                    overrides.update({'level':lvl})
+                    overrides.update({'date':FromDatetime((basedate + timedelta(hours=dt)), overrides['level'])})
                     run(dosave, assigned, **overrides)
+                    
+    elif sys.argv[1] == "-help":
+        for line in list(range(25, 101, 1)):
+            if line != 100:
+                print(manual[line], end='')
             else:
-                run(dosave, assigned, **overrides)
-            overrides.update({"fcHour":(int(overrides['fcHour']) + 6)})
-            overrides.update({"fcloop":(int(overrides['fcloop']) - 1)})
-        if np.sign(overrides['fcloop']) == 0:
-            if allLevels:
-                for lvl in levels:
-                    overrides.update({"level":f"{lvl}"})
-                    run(dosave, assigned, **overrides)
-            else:
-                run(dosave, assigned, **overrides)
+                print(manual[line])
         
     sys.exit()
 else:
