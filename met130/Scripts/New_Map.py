@@ -55,6 +55,9 @@ import sys
 from PIL import Image
 import json
 
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 version = "0.1.0"
 
 # Opening the config file
@@ -92,6 +95,8 @@ def inputChain():
     global loadedBF
     global loadedSmooth
     global loadedProjection
+    global title
+    global noShow
     
     print("<menu> Input commands, or type 'help'.")
     comm = input("<input> ")
@@ -99,11 +104,12 @@ def inputChain():
     command = comm.split(" ")
     
     if command[0] == "help":
-        for line in list(range(1, 23, 1)):
-            if line != 22:
-                print(manual[line], end='')
-            else:
-                print(manual[line])
+        for line in list(range(1, 58, 1)):
+#            if line != 22:
+#                print(manual[line], end='')
+#            else:
+#                print(manual[line])
+            print(manual[line], end='')
         inputChain()
     
     if command[0] == "list":
@@ -145,9 +151,13 @@ def inputChain():
         print("<factors> 'height_contours' - Gridded pressure height contours (upper-air only)")
         print("<factors> 'temp_contours' - Gridded temperature contours")
         print("<factors> 'temp_fill' - Gridded temperature coloration fill")
-        print("<factors> 'gridded_barbs' - Gridded winds")
+        print("<factors> 'wind_fill' - Gridded winds as a plot fill")
+        print("<factors> 'temp_advect_fill' - Gridded temperature advection")
+        print("<factors> 'relative_vorticity_fill' - Gridded relative vorticity")
+        print("<factors> 'absolute_vorticity_fill' - Gridded absolute vorticity (upper-air only)")
         print("<factors> 'pressure_contours' - Gridded pressure contours (surface only)")
         print("<factors> 'dew_contours' - Gridded dewpoint contours (surface only)")
+        print("<factors> 'gridded_barbs' - Gridded winds")
         inputChain()
     elif command[0] == 'paste':
         paste()
@@ -224,9 +234,19 @@ def inputChain():
                 A = True
             else:
                 A = False
+            NS = input("<run> Would you like to show this map? [y/n] ")
+            if NS == 'n':
+                noShow = True
+            else:
+                noShow = False
+            title = input("<run> If you would like to override the default title, type the override here. Otherwise, hit enter: ")
+        else:
+            S = False
+            A = False
+            title = ''
         save('prev')
         print("<run> Previous settings saved.")
-        run(S, A)
+        run(S, A, title)
     elif command[0] == 'quit':
         sys.exit("<quit> The process was terminated.")
     else:
@@ -391,7 +411,7 @@ def FromDatetime(datetimeObj, level):
 
     
 # The meat of the program
-def run(dosave, assigned, **qrOverride):
+def run(dosave, assigned, titleOverride, **qrOverride):
     
     global loadedLevel
     global loadedDelta
@@ -444,6 +464,8 @@ def run(dosave, assigned, **qrOverride):
     
 
     # Data Acquisition
+    plot_time = inputTimeGridded + timedelta(hours=loadedDelta)
+    
     recentness = currentTime - inputTime
     if level == 'surface':
         if year < 2019:
@@ -471,11 +493,18 @@ def run(dosave, assigned, **qrOverride):
     elif (inputTime >= datetime(1979, 1, 1)):
         ds = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{inputTimeGridded:%Y%m/%Y%m%d}/narr-a_221_{inputTimeGridded:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
         
-        ds['wind_speed_isobaric'] = mpcalc.wind_speed(ds['u-component_of_wind_isobaric'], ds['v-component_of_wind_isobaric'])
-        ds['wind_speed_height_above_ground'] = mpcalc.wind_speed(ds['u-component_of_wind_height_above_ground'], ds['v-component_of_wind_height_above_ground'])
-        
-        
-    plot_time = inputTimeGridded + timedelta(hours=loadedDelta)
+    if level == 'surface':
+        tmpk = ds.Temperature_height_above_ground.metpy.sel(vertical=2*units.m, time=plot_time)
+        uwind = ds['u-component_of_wind_height_above_ground'].metpy.sel(vertical=10*units.m, time=plot_time)
+        vwind = ds['v-component_of_wind_height_above_ground'].metpy.sel(vertical=10*units.m, time=plot_time)
+        ds['wind_speed_height_above_ground'] = mpcalc.wind_speed(uwind, vwind)
+    else:
+        tmpk = ds.Temperature_isobaric.metpy.sel(vertical=level*units.hPa, time=plot_time)
+        uwind = ds['u-component_of_wind_isobaric'].metpy.sel(vertical=level*units.hPa, time=plot_time)
+        vwind = ds['v-component_of_wind_isobaric'].metpy.sel(vertical=level*units.hPa, time=plot_time)
+        ds['wind_speed_isobaric'] = mpcalc.wind_speed(uwind, vwind)
+    ds['relative_vorticity'] = mpcalc.vorticity(uwind, vwind)
+    ds['temperature_advection'] = mpcalc.advection(tmpk, uwind, vwind)
     
     # Panel Preparation
     panel = declarative.MapPanel()
@@ -537,7 +566,224 @@ def run(dosave, assigned, **qrOverride):
     
     # Factor Parsing
     plotslist = []
-        # Observations
+    factors = loadedFactors.split(", ")
+        # Gridded
+    if level != 'surface':
+        if "temp_fill" in factors:
+            temp_fill = declarative.FilledContourPlot()
+            temp_fill.data = ds
+            temp_fill.field = 'Temperature_isobaric'
+            temp_fill.level = level * units.hPa
+            temp_fill.time = plot_time
+            temp_fill.contours = list(range(-100, 101, 1)) # rangeTL, rangeTH
+            temp_fill.colormap = 'coolwarm'
+            temp_fill.colorbar = 'horizontal'
+            temp_fill.plot_units = 'degC'
+            plotslist.append(temp_fill)
+            
+        if "wind_speed_fill" in factors:
+            wind_speed_fill = declarative.FilledContourPlot()
+            wind_speed_fill.data = ds
+            wind_speed_fill.field = 'wind_speed_isobaric'
+            wind_speed_fill.level = level * units.hPa
+            wind_speed_fill.time = plot_time
+            wind_speed_fill.contours = list(range(10, 201, 20))
+            wind_speed_fill.colormap = 'BuPu'
+            wind_speed_fill.colorbar = 'horizontal'
+            wind_speed_fill.plot_units = 'knot'
+            plotslist.append(wind_speed_fill)
+            
+        if "temp_advect_fill" in factors:
+            temp_advect_fill = declarative.FilledContourPlot()
+            temp_advect_fill.data = ds
+            temp_advect_fill.field = 'temperature_advection'
+            temp_advect_fill.level = None
+            temp_advect_fill.time = None
+            temp_advect_fill.contours = list(np.arange(-29, 30, 0.1))
+            temp_advect_fill.colormap = 'bwr'
+            temp_advect_fill.colorbar = 'horizontal'
+            temp_advect_fill.scale = 3
+            temp_advect_fill.plot_units = 'degC/hour'
+            plotslist.append(temp_advect_fill)
+            
+        if "relative_vorticity_fill" in factors:
+            relative_vorticity_fill = declarative.FilledContourPlot()
+            relative_vorticity_fill.data = ds
+            relative_vorticity_fill.field = 'relative_vorticity'
+            relative_vorticity_fill.level = None
+            relative_vorticity_fill.time = None
+            relative_vorticity_fill.contours = list(range(-80, 81, 2))
+            relative_vorticity_fill.colormap = 'PuOr_r'
+            relative_vorticity_fill.colorbar = 'horizontal'
+            relative_vorticity_fill.scale = 1e5
+            plotslist.append(relative_vorticity_fill)
+            
+        if "absolute_vorticity_fill" in factors:
+            absolute_vorticity_fill = declarative.FilledContourPlot()
+            absolute_vorticity_fill.data = ds
+            absolute_vorticity_fill.field = 'Absolute_vorticity_isobaric'
+            absolute_vorticity_fill.level = level * units.hPa
+            absolute_vorticity_fill.time = plot_time
+            absolute_vorticity_fill.contours = list(range(-80, 81, 2))
+            absolute_vorticity_fill.colormap = 'PuOr_r'
+            absolute_vorticity_fill.colorbar = 'horizontal'
+            absolute_vorticity_fill.scale = 1e5
+            plotslist.append(absolute_vorticity_fill)
+            
+        if "height_contours" in factors:
+            pressure_heights = declarative.ContourPlot()
+            pressure_heights.data = ds
+            pressure_heights.field = 'Geopotential_height_isobaric'
+            pressure_heights.level = level * units.hPa
+            pressure_heights.time = plot_time
+            pressure_heights.contours = list(range(0, 12000, steps))
+            pressure_heights.clabels = True
+            pressure_heights.smooth_contour = int(loadedSmooth)
+            plotslist.append(pressure_heights)
+    
+        if "temp_contours" in factors:
+            temp_contours = declarative.ContourPlot()
+            temp_contours.data = ds
+            temp_contours.field = 'Temperature_isobaric'
+            temp_contours.level = level * units.hPa
+            temp_contours.time = plot_time
+            temp_contours.contours = list(range(-100, 101, 5))
+            temp_contours.linecolor = 'red'
+            temp_contours.linestyle = 'dashed'
+            temp_contours.clabels = True
+            temp_contours.plot_units = 'degC'
+            temp_contours.smooth_contour = int(loadedSmooth)
+            plotslist.append(temp_contours)
+
+        if "dew_contours" in factors:
+            hPaLevel = level * units.hPa
+            tmpIsoSel = ds['Temperature_isobaric'].metpy.sel(vertical=hPaLevel)
+            rhIsoSel = ds['Relative_humidity_isobaric'].metpy.sel(vertical=hPaLevel)
+            ds['Dewpoint_isobaric'] = mpcalc.dewpoint_from_relative_humidity(tmpIsoSel, rhIsoSel)
+            dew_contours = declarative.ContourPlot()
+            dew_contours.data = ds
+            dew_contours.field = 'Dewpoint_isobaric'
+            dew_contours.level = None
+            dew_contours.time = plot_time
+            dew_contours.contours = list(range(-100, 101, 5))
+            dew_contours.linecolor = 'green'
+            dew_contours.linestyle = 'dashed'
+            dew_contours.clabels = True
+            #dew_contours.plot_units = 'degC'
+            dew_contours.smooth_contours = int(loadedSmooth)
+            plotslist.append(dew_contours)
+        
+        if "gridded_barbs" in factors:
+            barbs = declarative.BarbPlot()
+            barbs.data = ds
+            barbs.time = plot_time
+            barbs.field = ['u-component_of_wind_isobaric', 'v-component_of_wind_isobaric']
+            barbs.level = level * units.hPa
+            barbs.skip = (int(loadedBF), int(loadedBF))
+            barbs.plot_units = 'knot'
+            plotslist.append(barbs)
+            
+    else:
+        if "temp_fill" in factors:
+            temp_fill = declarative.FilledContourPlot()
+            temp_fill.data = ds
+            temp_fill.field = 'Temperature_height_above_ground'
+            temp_fill.level = 2 * units.m
+            temp_fill.time = plot_time
+            temp_fill.contours = list(range(-68, 133, 2)) # rangeTL_F, rangeTH_F
+            temp_fill.colormap = 'coolwarm'
+            temp_fill.colorbar = 'horizontal'
+            temp_fill.plot_units = 'degF'
+            plotslist.append(temp_fill)
+            
+        if "wind_speed_fill" in factors:
+            wind_speed_fill = declarative.FilledContourPlot()
+            wind_speed_fill.data = ds
+            wind_speed_fill.field = 'wind_speed_height_above_ground'
+            wind_speed_fill.level = 10 * units.m
+            wind_speed_fill.time = plot_time
+            wind_speed_fill.contours = list(range(10, 201, 20))
+            wind_speed_fill.colormap = 'BuPu'
+            wind_speed_fill.colorbar = 'horizontal'
+            wind_speed_fill.plot_units = 'knot'
+            plotslist.append(wind_speed_fill)
+            
+        if "temp_advect_fill" in factors:
+            temp_advect_fill = declarative.FilledContourPlot()
+            temp_advect_fill.data = ds
+            temp_advect_fill.field = 'temperature_advection'
+            temp_advect_fill.level = None
+            temp_advect_fill.time = None
+            temp_advect_fill.contours = list(np.arange(-29, 30, 0.1))
+            temp_advect_fill.colormap = 'bwr'
+            temp_advect_fill.colorbar = 'horizontal'
+            temp_advect_fill.scale = 3
+            temp_advect_fill.plot_units = 'degC/hour'
+            plotslist.append(temp_advect_fill)
+            
+        if "relative_vorticity_fill" in factors:
+            relative_vorticity_fill = declarative.FilledContourPlot()
+            relative_vorticity_fill.data = ds
+            relative_vorticity_fill.field = 'relative_vorticity'
+            relative_vorticity_fill.level = None
+            relative_vorticity_fill.time = None
+            relative_vorticity_fill.contours = list(range(-40, 41, 2))
+            relative_vorticity_fill.colormap = 'PuOr_r'
+            relative_vorticity_fill.colorbar = 'horizontal'
+            relative_vorticity_fill.scale = 1e5
+            plotslist.append(relative_vorticity_fill)
+
+        if "pressure_contours" in factors:
+            pressure = declarative.ContourPlot()
+            pressure.data = ds
+            pressure.field = 'Pressure_reduced_to_MSL_msl'
+            pressure.level = None
+            pressure.time = plot_time
+            pressure.contours = list(range(0, 2000, 4))
+            pressure.clabels = True
+            pressure.plot_units = 'hPa'
+            pressure.smooth_contour = int(loadedSmooth)
+            plotslist.append(pressure)
+            
+        if "temp_contours" in factors:
+            temp_contours = declarative.ContourPlot()
+            temp_contours.data = ds
+            temp_contours.field = 'Temperature_height_above_ground'
+            temp_contours.level = 2 * units.m
+            temp_contours.time = plot_time
+            temp_contours.contours = list(range(-100, 101, 10))
+            temp_contours.linecolor = 'red'
+            temp_contours.linestyle = 'dashed'
+            temp_contours.clabels = True
+            temp_contours.plot_units = 'degF'
+            temp_contours.smooth_contour = int(loadedSmooth)
+            plotslist.append(temp_contours)
+            
+        if "dew_contours" in factors:
+            dew_contours = declarative.ContourPlot()
+            dew_contours.data = ds
+            dew_contours.field = 'Dewpoint_temperature_height_above_ground'
+            dew_contours.level = 2 * units.m
+            dew_contours.time = plot_time
+            dew_contours.contours = list(range(-100, 101, 10))
+            dew_contours.linecolor = 'green'
+            dew_contours.linestyle = 'dashed'
+            dew_contours.clabels = True
+            dew_contours.plot_units = 'degF'
+            dew_contours.smooth_contour = int(loadedSmooth)
+            plotslist.append(dew_contours)
+            
+        if "gridded_barbs" in factors:
+            barbs = declarative.BarbPlot()
+            barbs.data = ds
+            barbs.time = plot_time
+            barbs.field = ['u-component_of_wind_height_above_ground', 'v-component_of_wind_height_above_ground']
+            barbs.level = 10 * units.m
+            barbs.skip = (int(loadedBF), int(loadedBF))
+            barbs.plot_units = 'knot'
+            plotslist.append(barbs)
+            
+                    # Observations
     obsfields = []
     obscolors = []
     obslocations = []
@@ -547,7 +793,6 @@ def run(dosave, assigned, **qrOverride):
     obs.data = df
     obs.time = inputTime
     
-    factors = loadedFactors.split(", ")
     if "temperature" in factors:
         if level == 'surface':
             obsfields.append('tmpf')
@@ -610,172 +855,30 @@ def run(dosave, assigned, **qrOverride):
     else:
         obs.level = level * units.hPa
         
-        # Gridded
-    if level != 'surface':
-        if "height_contours" in factors:
-            pressure_heights = declarative.ContourPlot()
-            pressure_heights.data = ds
-            pressure_heights.field = 'Geopotential_height_isobaric'
-            pressure_heights.level = level * units.hPa
-            pressure_heights.time = plot_time
-            pressure_heights.contours = list(range(0, 12000, steps))
-            pressure_heights.clabels = True
-            pressure_heights.smooth_contour = int(loadedSmooth)
-            plotslist.append(pressure_heights)
+        
+    conTitle = "Contour Map"
+    sConTitle = "Surface Contour Map"
+    obsTitle = "Map"
+    sObsTitle = "Surface Map"
     
-        if "temp_contours" in factors:
-            temp_contours = declarative.ContourPlot()
-            temp_contours.data = ds
-            temp_contours.field = 'Temperature_isobaric'
-            temp_contours.level = level * units.hPa
-            temp_contours.time = plot_time
-            temp_contours.contours = list(range(-100, 100, 5))
-            temp_contours.linecolor = 'red'
-            temp_contours.linestyle = 'dashed'
-            temp_contours.clabels = True
-            temp_contours.plot_units = 'degC'
-            temp_contours.smooth_contour = int(loadedSmooth)
-            plotslist.append(temp_contours)
-
-        if "dew_contours" in factors:
-            hPaLevel = level * units.hPa
-            tmpIsoSel = ds['Temperature_isobaric'].metpy.sel(vertical=hPaLevel)
-            rhIsoSel = ds['Relative_humidity_isobaric'].metpy.sel(vertical=hPaLevel)
-            ds['Dewpoint_isobaric'] = mpcalc.dewpoint_from_relative_humidity(tmpIsoSel, rhIsoSel)
-            dew_contours = declarative.ContourPlot()
-            dew_contours.data = ds
-            dew_contours.field = 'Dewpoint_isobaric'
-            dew_contours.level = None
-            dew_contours.time = plot_time
-            dew_contours.contours = list(range(-100, 100, 5))
-            dew_contours.linecolor = 'green'
-            dew_contours.linestyle = 'dashed'
-            dew_contours.clabels = True
-            #dew_contours.plot_units = 'degC'
-            dew_contours.smooth_contours = int(loadedSmooth)
-            plotslist.append(dew_contours)
-        
-        if "temp_fill" in factors:
-            temp_fill = declarative.FilledContourPlot()
-            temp_fill.data = ds
-            temp_fill.field = 'Temperature_isobaric'
-            temp_fill.level = level * units.hPa
-            temp_fill.time = plot_time
-            temp_fill.contours = list(range(-100, 100, 1)) # rangeTL, rangeTH
-            temp_fill.colormap = 'coolwarm'
-            temp_fill.colorbar = 'horizontal'
-            temp_fill.plot_units = 'degC'
-            plotslist.append(temp_fill)
-            
-        if "wind_speed_fill" in factors:
-            wind_speed_fill = declarative.FilledContourPlot()
-            wind_speed_fill.data = ds
-            wind_speed_fill.field = 'wind_speed_isobaric'
-            wind_speed_fill.level = level * units.hPa
-            wind_speed_fill.time = plot_time
-            wind_speed_fill.contours = list(range(10, 201, 20))
-            wind_speed_fill.colormap = 'BuPu'
-            wind_speed_fill.colorbar = 'horizontal'
-            wind_speed_fill.plot_units = 'knot'
-            plotslist.append(wind_speed_fill)
-        
-        if "gridded_barbs" in factors:
-            barbs = declarative.BarbPlot()
-            barbs.data = ds
-            barbs.time = plot_time
-            barbs.field = ['u-component_of_wind_isobaric', 'v-component_of_wind_isobaric']
-            barbs.level = level * units.hPa
-            barbs.skip = (int(loadedBF), int(loadedBF))
-            barbs.plot_units = 'knot'
-            plotslist.append(barbs)
-            
-    else:
-        if "pressure_contours" in factors:
-            pressure = declarative.ContourPlot()
-            pressure.data = ds
-            pressure.field = 'Pressure_reduced_to_MSL_msl'
-            pressure.level = None
-            pressure.time = plot_time
-            pressure.contours = list(range(0, 2000, 4))
-            pressure.clabels = True
-            pressure.plot_units = 'hPa'
-            pressure.smooth_contour = int(loadedSmooth)
-            plotslist.append(pressure)
-        
-        if "temp_fill" in factors:
-            temp_fill = declarative.FilledContourPlot()
-            temp_fill.data = ds
-            temp_fill.field = 'Temperature_height_above_ground'
-            temp_fill.level = 2 * units.m
-            temp_fill.time = plot_time
-            temp_fill.contours = list(range(-68, 132, 2)) # rangeTL_F, rangeTH_F
-            temp_fill.colormap = 'coolwarm'
-            temp_fill.colorbar = 'horizontal'
-            temp_fill.plot_units = 'degF'
-            plotslist.append(temp_fill)
-            
-        if "temp_contours" in factors:
-            temp_contours = declarative.ContourPlot()
-            temp_contours.data = ds
-            temp_contours.field = 'Temperature_height_above_ground'
-            temp_contours.level = 2 * units.m
-            temp_contours.time = plot_time
-            temp_contours.contours = list(range(-100, 100, 10))
-            temp_contours.linecolor = 'red'
-            temp_contours.linestyle = 'dashed'
-            temp_contours.clabels = True
-            temp_contours.plot_units = 'degF'
-            temp_contours.smooth_contour = int(loadedSmooth)
-            plotslist.append(temp_contours)
-            
-        if "dew_contours" in factors:
-            dew_contours = declarative.ContourPlot()
-            dew_contours.data = ds
-            dew_contours.field = 'Dewpoint_temperature_height_above_ground'
-            dew_contours.level = 2 * units.m
-            dew_contours.time = plot_time
-            dew_contours.contours = list(range(-100, 100, 10))
-            dew_contours.linecolor = 'green'
-            dew_contours.linestyle = 'dashed'
-            dew_contours.clabels = True
-            dew_contours.plot_units = 'degF'
-            dew_contours.smooth_contour = int(loadedSmooth)
-            plotslist.append(dew_contours)
-            
-        if "wind_speed_fill" in factors:
-            wind_speed_fill = declarative.FilledContourPlot()
-            wind_speed_fill.data = ds
-            wind_speed_fill.field = 'wind_speed_height_above_ground'
-            wind_speed_fill.level = 10 * units.m
-            wind_speed_fill.time = plot_time
-            wind_speed_fill.contours = list(range(10, 201, 20))
-            wind_speed_fill.colormap = 'BuPu'
-            wind_speed_fill.colorbar = 'horizontal'
-            wind_speed_fill.plot_units = 'knot'
-            plotslist.append(wind_speed_fill)
-            
-        if "gridded_barbs" in factors:
-            barbs = declarative.BarbPlot()
-            barbs.data = ds
-            barbs.time = plot_time
-            barbs.field = ['u-component_of_wind_height_above_ground', 'v-component_of_wind_height_above_ground']
-            barbs.level = 10 * units.m
-            barbs.skip = (int(loadedBF), int(loadedBF))
-            barbs.plot_units = 'knot'
-            plotslist.append(barbs)
+    if titleOverride != '':
+        conTitle = titleOverride
+        sConTitle = titleOverride
+        obsTitle = titleOverride
+        sObsTitle = titleOverride
         
     panel.plots = plotslist
     count = len(plotslist)
     if count > 1:
         if level == 'surface':
-            panel.title = f'Bailey, Sam - {loadedArea} Surface Contour Map {timestampAlp}, {loadedDelta} Hour Forecast'
+            panel.title = f'Bailey, Sam - {loadedArea} {sConTitle} {timestampAlp}, {loadedDelta} Hour Forecast'
         else:
-            panel.title = f'Bailey, Sam - {loadedArea} {level}mb Contour Map {timestampAlp}, {loadedDelta} Hour Forecast'
+            panel.title = f'Bailey, Sam - {loadedArea} {level}mb {conTitle} {timestampAlp}, {loadedDelta} Hour Forecast'
     else:
         if level == 'surface':
-            panel.title = f'Bailey, Sam - {loadedArea} Surface Map {timestampAlp}'
+            panel.title = f'Bailey, Sam - {loadedArea} {sObsTitle} {timestampAlp}'
         else:
-            panel.title = f'Bailey, Sam - {loadedArea} {level}mb Map {timestampAlp}'
+            panel.title = f'Bailey, Sam - {loadedArea} {level}mb {obsTitle} {timestampAlp}'
 
     pc = declarative.PanelContainer()
     pc.size = (scaledDiff, scaledDiff)
@@ -794,24 +897,24 @@ def run(dosave, assigned, **qrOverride):
             os.mkdir(f'../Maps/{saveLocale}/{daystamp}')
         if (count > 1):
             if level != 'surface':
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb {conTitle}, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {level}mb {conTitle}, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
             else:
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} Surface Contour Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {sConTitle}, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedDelta:02d}H, {loadedArea} {sConTitle}, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
         else:
             if level != 'surface':
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb {obsTitle}, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {level}mb {obsTitle}, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
             else:
-                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} Surface Map, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
-                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} Surface Map, {loadedDPI} DPI - Bailey, Sam.png')
+                pc.save(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {sObsTitle}, {loadedDPI} DPI - Bailey, Sam.png', dpi=int(loadedDPI), bbox_inches='tight')
+                save = Image.open(f'../Maps/{saveLocale}/{daystamp}/{timestampNum}, {loadedArea} {sObsTitle}, {loadedDPI} DPI - Bailey, Sam.png')
                 if noShow == False:
                     save.show()
         print("<run> Map successfully saved!")
@@ -910,8 +1013,8 @@ if len(sys.argv) > 1:
                     run(dosave, assigned, **overrides)
                     
     elif sys.argv[1] == "-help":
-        for line in list(range(25, 101, 1)):
-            if line != 100:
+        for line in list(range(60, 136, 1)):
+            if line != 135:
                 print(manual[line], end='')
             else:
                 print(manual[line])

@@ -19,6 +19,41 @@
 # >>> python New_Map.py -help                  #
 # will print all accepted arguments and their  #
 # usages to console.                           #
+#                                              #
+#                                              #
+# The following is a list of all commands that #
+# are accepted within the program:             #
+#                                              #
+# > time                                       #
+# to set and print the current time.           #
+#                                              #
+# > preset {preset_name}                       #
+# to load a map preset                         #
+#                                              #
+# > preset list                                #
+# to list available presets                    #
+#                                              #
+# > factors                                    #
+# to list accepted map factors                 #
+#                                              #
+# > paste                                      #
+# to see the currently loaded values           #
+#                                              #
+# > edit {parameter} {value}                   #
+# to edit a loaded parameter                   #
+#                                              #
+# > edit Factors {values}                      #
+# > edit Factors {add/remove} {value}          #
+# to edit loaded factors                       #
+#                                              #
+# > save {preset_name}                         #
+# to save the current settings as a preset     #
+#                                              #
+# > run                                        #
+# to run with the current settings             #
+#                                              #
+# > quit                                       #
+# to exit without running                      #
 ################################################
 </manual>
 
