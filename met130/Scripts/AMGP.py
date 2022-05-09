@@ -3,7 +3,7 @@
 #       Automated Map Generation Program       #
 #                                              #
 #            Author: Sam Bailey                #
-#        Last Revised: Apr 13, 2022            #
+#        Last Revised: May 04, 2022            #
 #                Version 0.2.0                 #
 #                                              #
 #        AMGP Created on Mar 09, 2022          #
@@ -38,6 +38,7 @@ from datetime import datetime, timedelta
 from io import StringIO
 from urllib.request import urlopen
 from siphon.simplewebservice.iastate import IAStateUpperAir
+from siphon.catalog import TDSCatalog
 
 import cartopy.crs as ccrs
 from metpy.io import add_station_lat_lon
@@ -59,6 +60,8 @@ import contextlib
 
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
 
 version = "0.2.0"
 
@@ -117,6 +120,9 @@ def inputChain():
     if command[0] == 'time':
         getTime()
         inputChain()
+    elif command[0] == 'update':
+        cfgUpdate()
+        inputChain()
     elif command[0] == 'preset':
         if command[1] == 'list':
             keys = str(list(config['presets'].keys()))
@@ -130,7 +136,7 @@ def inputChain():
     elif command[0] == 'factors':
         print("<factors> 'temperature' - Observation station temps")
         print("<factors> 'dewpoint' - Observation station dewpoints")
-        print("<factors> 'dewpoint_depression' - Observation station dewpoint depressions")
+        print("<factors> 'dewpoint_depression+' - Observation station dewpoint depressions")
         print("<factors> 'height' - Observation station pressure heights (upper-air only)")
         print("<factors> 'pressure' - Observation station pressures (surface only)")
         print("<factors> 'current_weather' - Observation station weather (surface only)")
@@ -139,13 +145,18 @@ def inputChain():
         print("<factors> 'height_contours' - Gridded pressure height contours (upper-air only)")
         print("<factors> 'temp_contours' - Gridded temperature contours")
         print("<factors> 'temp_fill' - Gridded temperature coloration fill")
-        print("<factors> 'wind_fill' - Gridded winds as a plot fill")
+        print("<factors> 'wind_speed_fill' - Gridded winds as a plot fill")
         print("<factors> 'temp_advect_fill' - Gridded temperature advection")
         print("<factors> 'relative_vorticity_fill' - Gridded relative vorticity")
         print("<factors> 'absolute_vorticity_fill' - Gridded absolute vorticity (upper-air only)")
         print("<factors> 'pressure_contours' - Gridded pressure contours (surface only)")
         print("<factors> 'dew_contours' - Gridded dewpoint contours (surface only)")
+        print("<factors> 'thickness_500_1000' - Gridded 500mb to 1000mb thickness contours")
         print("<factors> 'gridded_barbs' - Gridded winds")
+        print("<factors> 'sat_channel_2' - Visible satelite data")
+        print("<factors> 'sat_channel_9' - Water vapor satelite data")
+        print("<factors> 'sat_channel_14' - Infrared satelite data")
+        print("<factors> 'sat_truecolor' - COMING SOON, once MetPy updates")
         inputChain()
     elif command[0] == 'paste':
         singleLoads()
@@ -240,8 +251,12 @@ def inputChain():
         inputChain()
     elif command[0] == 'mode':
         global mode
-        mode = 1
-        multiMode()
+        if command[1] == "multi":
+            mode = 1
+            multiMode()
+        elif command[1] == "skewt":
+            mode = 2
+            stlpMode()
     elif command[0] == 'quit':
         ClearTemp()
         sys.exit("<quit> The process was terminated.")
@@ -280,6 +295,7 @@ def multiMode():
     if command[0] == 'time':
         getTime()
         multiMode()
+        '''
     elif command[0] == 'preset':
         if command[1] == 'list':
             keys = str(list(config['presets'].keys()))
@@ -290,9 +306,9 @@ def multiMode():
         else:
             presetLoad(command[1])
             multiLoads()
-            multiMode()
+            multiMode()'''
     elif command[0] == 'edit':
-        if command[1] in ['Date', 'DLoop', 'Jump' 'Delta', 'FCLoop', 'Levels']:
+        if command[1] in ['Date', 'DLoop', 'Jump', 'Delta', 'FCLoop', 'Levels']:
             if command[1] == 'Date':
                 if command[2] == 'recent':
                     Set.update({'date':command[2]})
@@ -333,8 +349,6 @@ def multiMode():
                             blankLevels.append(command[count])
                         count += 1
                 Set.update({'levels':', '.join(blankLevels)})
-        
-        print(command[0], command[1], command[2], Set['delta'])
         multiLoads()
         multiMode()
         
@@ -399,8 +413,12 @@ def multiMode():
                 #    SaveMap(panel, False, False, f'{c:03d}c', True)
                 c = c + 1
             frames = []
+            '''if np.sign(Set['dloop']) == -1:
+                for image in glob.glob("../Maps/Temp/*.png"):
+                    frames.append(Image.open(image))
+            else:'''
             for image in reversed(glob.glob("../Maps/Temp/*.png")):
-                frames.append(Image.open(image)) 
+                frames.append(Image.open(image))
             frame_one = frames[0]
             if doAssign:
                 frame_one.save(f"../Maps/Assignment_Maps/{gifname}.gif", format="GIF", append_images=frames, save_all=True, duration=1500, loop=0)
@@ -413,27 +431,58 @@ def multiMode():
         
     elif command[0] == 'mode':
         global mode
-        mode = 0
-        inputChain()
+        if command[1] == 'plot':
+            mode = 0
+            inputChain()
+        elif command[1] == 'skewt':
+            mode = 2
+            stlpMode()
     elif command[0] == 'quit':
         ClearTemp()
         sys.exit("<quit> The process was terminated.")
     else:
         print("<error> That is not a valid command!")
         multiMode()
+        
+        
+#    ------ End multiMode() ------
+
+
+
+def stlpMode():
+    print("This is as of yet under construction.")
+    
+    
+    
+
+#    ------ End stlpMode() ------
+
+
+# Update the current config file from 0.1.0 to 0.2.0
+def cfgUpdate():
+    for base in config:
+        if base == 'presets':
+            fullData = config[base]
+    config['presets'] = {'plots':{},'skewt':{}}
+    config['presets']['plots'] = fullData
+    config['config_ver'] = version
+    with open("config.json", "w") as J:
+        json.dump(config, J)
 
         
 # Save a preset to the config file
+
 def save(name):
     saveState = {"level":f"{loaded['level']}","date":f"{loaded['date']}","delta":f"{loaded['delta']}","factors":f"{loaded['factors']}","area":f"{loaded['area']}","dpi":f"{loaded['dpi']}","scale":f"{loaded['scale']}","prfactor":f"{loaded['prfactor']}","barbfactor":f"{loaded['barbfactor']}","smoothing":f"{loaded['smoothing']}","projection":f"{loaded['projection']}"}
-    config['presets'][f'{name}'] = saveState
+    print(name, saveState)
+    config['presets']['plots'][f'{name}'] = saveState
     with open("config.json", "w") as J:
         json.dump(config, J)
 
 # Load a preset from the config file
 def presetLoad(loadedPreset):
     global loaded
-    loaded = config['presets'][f'{loadedPreset}']
+    loaded = config['presets']['plots'][f'{loadedPreset}']
     
 def setInit():
     global Set
@@ -452,7 +501,7 @@ def singleLoads():
     print(f"<loaded> BF (Barb Factor): {loaded['barbfactor']}")
     print(f"<loaded> Smooth: {loaded['smoothing']}")
     print(f"<loaded> Projection: {loaded['projection']}")
-    
+
 def multiLoads():
     print(f"<settings> Below are the settings from the loaded preset:")
     singleLoads()
@@ -475,11 +524,12 @@ class Time(object):
             givenTime = datetime(currentTime.year, currentTime.month, currentTime.day, int(splitDate[1]))
         else:
             givenTime = datetime(int(splitDate[0]), int(splitDate[1]), int(splitDate[2]), int(splitDate[3]))
-            
-        if (givenTime < datetime(1931, 1, 2)):
-            sys.exit("<error> The date you entered is out of range!")
-        elif (givenTime < datetime(1979, 1, 1)):
-            print("<warning> The date you entered is out of range for gridded data.")
+           
+        if not rec:
+            if (givenTime < datetime(1931, 1, 2)):
+                sys.exit("<error> The date you entered is out of range!")
+            elif (givenTime < datetime(1979, 1, 1)):
+                print("<warning> The date you entered is out of range for gridded data.")
         
         
         if rec:
@@ -565,18 +615,26 @@ class Time(object):
             self.timeUA = datetime(givenTime.year, givenTime.month, givenTime.day, uHour)
             self.timeG = datetime(givenTime.year, givenTime.month, givenTime.day, gHour)
         
+        if len(splitDate) == 5:
+            self.minutes = splitDate[4]
+        else:
+            self.minutes = 0
         
-        self.ds = f"{givenTime.year}-{self.time.strftime('%m')}-{self.time.strftime('%d')}"
-        self.tsnum = f"{givenTime.year}-{self.time.strftime('%m')}-{self.time.strftime('%d')}-{self.time.strftime('%H')}Z"
-        self.tsalp = f"{self.time.strftime('%b')} {givenTime.day}, {givenTime.year} - {Hour}Z"
-        self.tsnumUA = f"{givenTime.year}-{self.timeUA.strftime('%m')}-{self.timeUA.strftime('%d')}-{self.timeUA.strftime('%H')}Z"
-        self.tsalpUA = f"{self.timeUA.strftime('%b')} {givenTime.day}, {givenTime.year} - {uHour}Z"
-        self.dsG = f"{givenTime.year}-{self.timeG.strftime('%m')}-{self.timeG.strftime('%d')}"
-        self.tsnumG = f"{givenTime.year}-{self.timeG.strftime('%m')}-{self.timeG.strftime('%d')}-{self.timeG.strftime('%H')}Z"
-        self.tsalpG = f"{self.timeG.strftime('%b')} {givenTime.day}, {givenTime.year} - {gHour}Z"
+        
+        self.ds = f"{self.time.year}-{self.time.strftime('%m')}-{self.time.strftime('%d')}"
+        self.tsnum = f"{self.time.year}-{self.time.strftime('%m')}-{self.time.strftime('%d')}-{self.time.strftime('%H')}Z"
+        self.tsalp = f"{self.time.strftime('%b')} {self.time.day}, {self.time.year} - {self.time.hour}Z"
+        self.tsnumUA = f"{self.timeUA.year}-{self.timeUA.strftime('%m')}-{self.timeUA.strftime('%d')}-{self.timeUA.strftime('%H')}Z"
+        self.tsalpUA = f"{self.timeUA.strftime('%b')} {self.timeUA.day}, {self.timeUA.year} - {self.timeUA.hour}Z"
+        self.dsG = f"{self.timeG.year}-{self.timeG.strftime('%m')}-{self.timeG.strftime('%d')}"
+        self.tsnumG = f"{self.timeG.year}-{self.timeG.strftime('%m')}-{self.timeG.strftime('%d')}-{self.timeG.strftime('%H')}Z"
+        self.tsalpG = f"{self.timeG.strftime('%b')} {self.timeG.day}, {self.timeG.year} - {self.timeG.hour}Z"
         
     def ToString(self):
         return f"{self.time.year}, {self.time.month}, {self.time.day}, {self.time.hour}"
+    
+    def WithMinutes(self):
+        return datetime(self.time.year, self.time.month, self.time.day, self.time.hour, self.minutes)
     
 
 def ParseTime(string):
@@ -602,39 +660,107 @@ class Datum(object):
     
         recentness = currentTime - adjustedTime
         if adjustedTime.year < 2019:
-            self.sfcDat = pd.read_csv(f'http://bergeron.valpo.edu/archive_surface_data/{adjustedTime:%Y}/{adjustedTime:%Y%m%d}_metar.csv', parse_dates=['date_time'], na_values=[-9999], low_memory=False)
-            self.weather_format = 'present_weather'
-            self.sfcDat['tmpf'] = (self.sfcDat.air_temperature.values * units.degC).to('degF')
-            self.sfcDat['dwpf'] = (self.sfcDat.dew_point_temperature.values * units.degC).to('degF')
+            try:
+                self.sfcDat = pd.read_csv(f'http://bergeron.valpo.edu/archive_surface_data/{adjustedTime:%Y}/{adjustedTime:%Y%m%d}_metar.csv', parse_dates=['date_time'], na_values=[-9999], low_memory=False)
+                self.weather_format = 'present_weather'
+                self.sfcDat['tmpf'] = (self.sfcDat.air_temperature.values * units.degC).to('degF')
+                self.sfcDat['dwpf'] = (self.sfcDat.dew_point_temperature.values * units.degC).to('degF')
+            except:
+                print("The Valpo surface data archives are down!")
+                self.sfcDat = None
         elif recentness < timedelta(days=14):
-            data = StringIO(urlopen('http://bergeron.valpo.edu/current_surface_data/'f'{adjustedTime:%Y%m%d%H}_sao.wmo').read().decode('utf-8', 'backslashreplace'))
-            self.sfcDat = metar.parse_metar_file(data, year=adjustedTime.year, month=adjustedTime.month)
-            self.sfcDat['tmpf'] = (self.sfcDat.air_temperature.values * units.degC).to('degF')
-            self.sfcDat['dwpf'] = (self.sfcDat.dew_point_temperature.values * units.degC).to('degF')
-            self.weather_format = 'current_wx1_symbol'
+            try:
+                data = StringIO(urlopen('http://bergeron.valpo.edu/current_surface_data/'f'{adjustedTime:%Y%m%d%H}_sao.wmo').read().decode('utf-8', 'backslashreplace'))
+                self.sfcDat = metar.parse_metar_file(data, year=adjustedTime.year, month=adjustedTime.month)
+                self.sfcDat['tmpf'] = (self.sfcDat.air_temperature.values * units.degC).to('degF')
+                self.sfcDat['dwpf'] = (self.sfcDat.dew_point_temperature.values * units.degC).to('degF')
+                self.weather_format = 'current_wx1_symbol'
+            except:
+                print("The Valpo surface data archives are down!")
+                self.sfcDat = None
         else:
             print("<warning> The date you have selected has no surface data available!")
             self.sfcDat = None
-        self.uaDat = IAStateUpperAir.request_all_data(adjustedUpperAirTime)
-        self.uaDat = add_station_lat_lon(self.uaDat, 'station').dropna(subset=['latitude', 'longitude'])
-        self.uaDat = self.uaDat[self.uaDat.station != 'KVER'] # "central Missouri" station that shouldn't be there, due to faulty lat-lon data
-        self.uaDat['dewpoint_depression'] = self.uaDat['temperature'] - self.uaDat['dewpoint']
+        try:
+            self.uaDat = IAStateUpperAir.request_all_data(adjustedUpperAirTime)
+            self.uaDat = add_station_lat_lon(self.uaDat, 'station').dropna(subset=['latitude', 'longitude'])
+            self.uaDat = self.uaDat[self.uaDat.station != 'KVER'] # "central Missouri" station that shouldn't be there, due to faulty lat-lon data
+            self.uaDat['dewpoint_depression'] = self.uaDat['temperature'] - self.uaDat['dewpoint']
+        except:
+            print("<warning> The date you have selected has no upper-air data available!")
+            self.uaDat = None
         
         if (recentness < timedelta(days=14)):
             self.grd = xr.open_dataset('https://thredds.ucar.edu/thredds/dodsC/grib'f'/NCEP/GFS/Global_onedeg/GFS_Global_onedeg_{adjustedGriddedTime:%Y%m%d}_{adjustedGriddedTime:%H%M}.grib2').metpy.parse_cf()
         elif (adjustedGriddedTime >= datetime(2004, 3, 2)):
             try:
-                self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-g3-anl-files-old/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/gfsanl_3_{adjustedGriddedTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
+                self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-003-files/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/gfs_3_{adjustedGriddedTime:%Y%m%d_%H}00_{delta:03d}.grb2').metpy.parse_cf()
             except:
-                self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-003-files-old/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/gfs_3_{adjustedGriddedTime:%Y%m%d_%H}00_{delta:03d}.grb2').metpy.parse_cf()
+                try:
+                    self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-g3-anl-files-old/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/gfsanl_3_{adjustedGriddedTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
+                except:
+                    try:
+                        self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-gfs-003-files-old/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/gfs_3_{adjustedGriddedTime:%Y%m%d_%H}00_{delta:03d}.grb2').metpy.parse_cf()
+                    except:
+                        print("<warning> Gridded data could not be found for the date you have selected!")
+                        self.grd = None
         elif (adjustedGriddedTime >= datetime(1979, 1, 1)):
-            self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/narr-a_221_{adjustedGriddedTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf()
+            self.grd = xr.open_dataset('https://www.ncei.noaa.gov/thredds/dodsC/model-narr-a-files/'f'{adjustedGriddedTime:%Y%m/%Y%m%d}/narr-a_221_{adjustedGriddedTime:%Y%m%d_%H}00_000.grb').metpy.parse_cf().metpy.assign_latitude_longitude()
         else:
             print("<warning> The date you have selected has no gridded data available!")
+            self.grd = None
             
             
 def PullData(time, delta, rewnd):
     return Datum(time, delta, rewnd)
+
+class SatDat(object):
+    def __init__(self, sat, chan, time, region):
+        catalog = TDSCatalog(f'https://thredds.ucar.edu/thredds/catalog/satellite/goes/{sat}/products/CloudAndMoistureImagery/{region}/Channel{chan:02d}/{time:%Y%m%d}/catalog.xml')
+        sateliteFormatHour = time.strftime('%Y%j%H')
+        files = []
+        times = []
+        for file in catalog.datasets:
+            if sateliteFormatHour in file:
+                times.append(datetime.strptime(file.split('_')[3][1:-3], '%Y%j%H%M'))
+                files.append(file)
+        fileSearch = np.abs(np.array(times) - time)
+        index = list(catalog.datasets).index(files[np.argmin(fileSearch)])
+        self.dat = catalog.datasets[index].remote_access(use_xarray=True)
+        if chan == 2:
+            self.dat['Sectorized_CMI'].values = np.sqrt(self.dat['Sectorized_CMI'].values)
+        self.dtm = self.dat.time.values.astype('datetime64[ms]').astype('O')
+        
+def PullSatData(sat, chan, time, region):
+    return SatDat(sat, chan, time, region)
+
+class TruecolorSat(object):
+    def __init__(self, B, R, Veg):
+        B_dat = np.power(np.clip(B.dat["Sectorized_CMI"].data, 0, 1), 1/2.2)
+        R_dat = np.power(np.clip(R.dat["Sectorized_CMI"].data[::2,::2], 0, 1), 1/2.2)
+        Veg_dat = np.power(np.clip(Veg.dat["Sectorized_CMI"].data, 0, 1), 1/2.2)
+        
+        G_dat = (R_dat * 0.45) + (Veg_dat * 0.1) + (B_dat * 0.45)
+        G_dat = np.clip(G_dat, 0, 1)
+        
+        ArrRed = B
+        ArrGrn = B
+        ArrBlu = B
+        
+        ArrRed.dat["Sectorized_CMI"].data = R_dat / 255
+        ArrGrn.dat["Sectorized_CMI"].data = G_dat / 255
+        ArrBlu.dat["Sectorized_CMI"].data = B_dat / 255
+        
+        self.rdat = ArrRed.dat
+        self.gdat = ArrGrn.dat
+        self.bdat = ArrBlu.dat
+        
+        #TrueGreen.dat["Sectorized_CMI"].data = np.dstack([R_dat, G_dat, B_dat])
+        #self.dat = TrueGreen.dat
+        #self.dtm = TrueGreen.dtm
+        
+def MakeTruecolorSat(B, R, Veg):
+    return TruecolorSat(B, R, Veg)  
 
 def GriddedCalculations(Data, level):
     
@@ -652,6 +778,9 @@ def GriddedCalculations(Data, level):
         Data.grd['wind_speed_isobaric'] = mpcalc.wind_speed(uwind, vwind)
     Data.grd['relative_vorticity'] = mpcalc.vorticity(uwind, vwind)
     Data.grd['temperature_advection'] = mpcalc.advection(tmpk, uwind, vwind)
+    hght_500 = Data.grd.Geopotential_height_isobaric.metpy.sel(time=plot_time, vertical=500 * units.hPa).metpy.quantify()
+    hght_1000 = Data.grd.Geopotential_height_isobaric.metpy.sel(time=plot_time, vertical=1000 * units.hPa).metpy.quantify()
+    Data.grd['thickness_500_1000'] = (hght_500 - hght_1000).metpy.dequantify()
     
     return Data
 
@@ -766,6 +895,8 @@ def run(values, titleOverride, **Override):
     midLat = (mapList[3]+mapList[2])//2
     if values['projection'] == '' or values['projection'] == 'custom':
         projection = ccrs.LambertConformal(central_longitude = midLon, central_latitude = midLat)
+    elif values['projection'] == 'satelite':
+        projection = None
     else:
         projection = values['projection']
     panel.projection = projection
@@ -774,6 +905,57 @@ def run(values, titleOverride, **Override):
     # Factor Parsing
     plotslist = []
     factors = values['factors'].split(", ")
+        # Satelite
+    if ("sat_channel_2" in factors) or ("sat_channel_9" in factors) or ("sat_channel_14" in factors) or ("sat_truecolor" in factors):
+        if "sat_channel_2" in factors:
+            sat_dat_2 = PullSatData('east', 2, Time.WithMinutes(),'CONUS').dat
+            sat_img = declarative.ImagePlot()
+            sat_img.data = sat_dat_2
+            sat_img.field = "Sectorized_CMI"
+            sat_img.colorbar = 'horizontal'
+            sat_img.colormap = 'Greys'
+            plotslist.append(sat_img)
+            
+        if "sat_truecolor" in factors:
+            sat_trc = MakeTruecolorSat(PullSatData('east', 1, Time.WithMinutes(),'CONUS'), PullSatData('east', 2, Time.WithMinutes(),'CONUS'), PullSatData('east', 3, Time.WithMinutes(),'CONUS'))
+            
+            sat_imgr = declarative.ImagePlot()
+            sat_imgr.data = sat_trc.rdat
+            sat_imgr.field = "Sectorized_CMI"
+            sat_imgr.colormap = 'Reds'
+            plotslist.append(sat_imgr)
+            
+            sat_imgg = declarative.ImagePlot()
+            sat_imgg.data = sat_trc.gdat
+            sat_imgg.field = "Sectorized_CMI"
+            sat_imgg.colormap = 'Greens'
+            plotslist.append(sat_imgg)
+            
+            sat_imgb = declarative.ImagePlot()
+            sat_imgb.data = sat_trc.bdat
+            sat_imgb.field = "Sectorized_CMI"
+            sat_imgb.colormap = 'Blues'
+            plotslist.append(sat_imgb)
+        
+        if "sat_channel_9" in factors:
+            sat_dat_9 = PullSatData('east', 9, Time.WithMinutes(),'CONUS').dat
+            sat_img = declarative.ImagePlot()
+            sat_img.data = sat_dat_9
+            sat_img.field = "Sectorized_CMI"
+            sat_img.colorbar = 'horizontal'
+            sat_img.colormap = 'WVCIMSS_r'
+            sat_img.image_range = (200, 280)
+            plotslist.append(sat_img)
+        
+        if "sat_channel_14" in factors:
+            sat_dat_14 = PullSatData('east', 14, Time.WithMinutes(),'CONUS').dat
+            sat_img = declarative.ImagePlot()
+            sat_img.data = sat_dat_14
+            sat_img.field = "Sectorized_CMI"
+            sat_img.colorbar = 'horizontal'
+            sat_img.colormap = 'ir_drgb_r'
+            plotslist.append(sat_img)
+        
         # Gridded
     if level != 'surface':
         if "temp_fill" in factors:
@@ -836,6 +1018,18 @@ def run(values, titleOverride, **Override):
             absolute_vorticity_fill.colorbar = 'horizontal'
             absolute_vorticity_fill.scale = 1e5
             plotslist.append(absolute_vorticity_fill)
+            
+        if "thickness_500_1000" in factors:
+            thickness_500_1000 = declarative.ContourPlot()
+            thickness_500_1000.data = Data.grd
+            thickness_500_1000.field = 'thickness_500_1000'
+            thickness_500_1000.level = None
+            thickness_500_1000.time = None
+            thickness_500_1000.contours = list(range(0, 10000, 60))
+            thickness_500_1000.clabels = True
+            thickness_500_1000.linestyle = 'dashed'
+            thickness_500_1000.smooth_contour = int(values['smoothing'])
+            plotslist.append(thickness_500_1000)
             
         if "height_contours" in factors:
             pressure_heights = declarative.ContourPlot()
@@ -939,6 +1133,18 @@ def run(values, titleOverride, **Override):
             relative_vorticity_fill.colorbar = 'horizontal'
             relative_vorticity_fill.scale = 1e5
             plotslist.append(relative_vorticity_fill)
+            
+        if "thickness_500_1000" in factors:
+            thickness_500_1000 = declarative.ContourPlot()
+            thickness_500_1000.data = Data.grd
+            thickness_500_1000.field = 'thickness_500_1000'
+            thickness_500_1000.level = None
+            thickness_500_1000.time = None
+            thickness_500_1000.contours = list(range(0, 10000, 60))
+            thickness_500_1000.clabels = True
+            thickness_500_1000.linestyle = 'dashed'
+            thickness_500_1000.smooth_contour = int(values['smoothing'])
+            plotslist.append(thickness_500_1000)
 
         if "pressure_contours" in factors:
             pressure = declarative.ContourPlot()
@@ -995,78 +1201,80 @@ def run(values, titleOverride, **Override):
     obscolors = []
     obslocations = []
     obsformats = []
-    
-    obs = declarative.PlotObs()
-    if Data.sfcDat != None:
+
+    if Data is not None:
+        obs = declarative.PlotObs()
+        if (Data.sfcDat is not None) and (Data.uaDat is not None):
+            if level == 'surface':
+                obs.data = Data.sfcDat
+                obs.time = Time.time
+            else:
+                obs.data = Data.uaDat
+                obs.time = Time.timeUA
+
+        if "temperature" in factors:
+            if level == 'surface':
+                obsfields.append('tmpf')
+            else:
+                obsfields.append('temperature')
+            obscolors.append('crimson')
+            obslocations.append('NW')
+            obsformats.append(None)
+        if "dewpoint" in factors:
+            if level == 'surface':
+                obsfields.append('dwpf')
+            else:
+                obsfields.append('dewpoint')
+            obscolors.append('green')
+            obslocations.append('SW')
+            obsformats.append(None)
+        elif "dewpoint_depression" in factors:
+            obsfields.append('dewpoint_depression')
+            obscolors.append('green')
+            obslocations.append('SW')
+            obsformats.append(None) # height_format?
+        if "height" in factors:
+            obsfields.append('height')
+            obscolors.append('darkslategrey')
+            obslocations.append('NE')
+            obsformats.append(height_format)
+        if "pressure" in factors:
+            obsfields.append('air_pressure_at_sea_level')
+            obscolors.append('darkslategrey')
+            obslocations.append('NE')
+            obsformats.append(mslp_formatter)
+        if 'current_weather' in factors:
+            obsfields.append(f'{Data.weather_format}')
+            obscolors.append('indigo')
+            obslocations.append('W')
+            obsformats.append('current_weather')
+        if "barbs" in factors:
+            if level == 'surface':
+                obs.vector_field = ['eastward_wind', 'northward_wind']
+            else:
+                obs.vector_field = ['u_wind', 'v_wind']
+        if "cloud_coverage" in factors:
+            obsfields.append('cloud_coverage')
+            obscolors.append('black')
+            obslocations.append('C')
+            obsformats.append('sky_cover')
+
+
+        obs.fields = obsfields
+        obs.colors = obscolors
+        obs.formats = obsformats
+        obs.locations = obslocations
+        obs.reduce_points = float(values['prfactor'])
+
         if level == 'surface':
-            obs.data = Data.sfcDat
+            obs.level = None
+            obs.time_window = timedelta(minutes=15)
         else:
-            obs.data = Data.uaDat
-        obs.time = Time.time
-    
-    if "temperature" in factors:
-        if level == 'surface':
-            obsfields.append('tmpf')
-        else:
-            obsfields.append('temperature')
-        obscolors.append('crimson')
-        obslocations.append('NW')
-        obsformats.append(None)
-    if "dewpoint" in factors:
-        if level == 'surface':
-            obsfields.append('dwpf')
-        else:
-            obsfields.append('dewpoint')
-        obscolors.append('green')
-        obslocations.append('SW')
-        obsformats.append(None)
-    elif "dewpoint_depression" in factors:
-        obsfields.append('dewpoint_depression')
-        obscolors.append('green')
-        obslocations.append('SW')
-        obsformats.append(height_format)
-    if "height" in factors:
-        obsfields.append('height')
-        obscolors.append('darkslategrey')
-        obslocations.append('NE')
-        obsformats.append(height_format)
-    if "pressure" in factors:
-        obsfields.append('air_pressure_at_sea_level')
-        obscolors.append('darkslategrey')
-        obslocations.append('NE')
-        obsformats.append(mslp_formatter)
-    if 'current_weather' in factors:
-        obsfields.append(f'{Data.weather_format}')
-        obscolors.append('indigo')
-        obslocations.append('W')
-        obsformats.append('current_weather')
-    if "barbs" in factors:
-        if level == 'surface':
-            obs.vector_field = ['eastward_wind', 'northward_wind']
-        else:
-            obs.vector_field = ['u_wind', 'v_wind']
-    if "cloud_coverage" in factors:
-        obsfields.append('cloud_coverage')
-        obscolors.append('black')
-        obslocations.append('C')
-        obsformats.append('sky_cover')
-        
-    
-    obs.fields = obsfields
-    obs.colors = obscolors
-    obs.formats = obsformats
-    obs.locations = obslocations
-    obs.reduce_points = float(values['prfactor'])
-    
-    if level == 'surface':
-        obs.level = None
-        obs.time_window = timedelta(minutes=15)
-    else:
-        obs.level = level * units.hPa
-                            
+            obs.level = level * units.hPa
+
+        if ("temperature" in factors) or ("dewpoint" in factors) or ("dewpoint_depression" in factors) or ("height" in factors) or ("pressure" in factors) or ('current_weather' in factors) or ("barbs" in factors) or ("cloud_coverage" in factors):
+            plotslist.append(obs)
             
-    if ("temperature" in factors) or ("dewpoint" in factors) or ("dewpoint_depression" in factors) or ("height" in factors) or ("pressure" in factors) or ('current_weather' in factors) or ("barbs" in factors) or ("cloud_coverage" in factors):
-        plotslist.append(obs)
         
     if obs in plotslist:
         observations = True
@@ -1086,7 +1294,7 @@ def run(values, titleOverride, **Override):
     elif observations and (level == 'surface'):
         maptype = 0 # Surface Observation Map
     elif observations and (level != 'surface'):
-        mapytpe = 1 # Upper-air Observation Map
+        maptype = 1 # Upper-air Observation Map
     
         
     conTitle = "Contour Map"
@@ -1158,8 +1366,8 @@ def SaveMap(product, doSave, assigned, titleOverride, noShow):
         if OldDir == False:
             os.mkdir(f'../Maps/{saveLocale}/{daystamp}')
         if product['type'] == 3:
-            pc.save(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['delta']:02d}H, {product['values']['area']} {level}mb {conTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png", dpi=int(product['values']['dpi']), bbox_inches='tight')
-            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['delta']:02d}H, {product['values']['area']} {level}mb {conTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
+            pc.save(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['delta']:02d}H, {product['values']['area']} {product['values']['level']}mb {conTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png", dpi=int(product['values']['dpi']), bbox_inches='tight')
+            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['delta']:02d}H, {product['values']['area']} {product['values']['level']}mb {conTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
             if noShow == False:
                 save.show()
         elif product['type'] == 2:
@@ -1168,13 +1376,13 @@ def SaveMap(product, doSave, assigned, titleOverride, noShow):
             if noShow == False:
                 save.show()
         elif product['type'] == 1:
-            pc.save(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {level}mb {obsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png", dpi=int(product['values']['dpi']), bbox_inches='tight')
-            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {level}mb {obsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
+            pc.save(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {product['values']['level']}mb {obsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png", dpi=int(product['values']['dpi']), bbox_inches='tight')
+            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {product['values']['level']}mb {obsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
             if noShow == False:
                 save.show()
         elif product['type'] == 0:
             pc.save(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {sObsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png", dpi=int(product['values']['dpi']), bbox_inches='tight')
-            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['dpi']} {sObsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
+            save = Image.open(f"../Maps/{saveLocale}/{daystamp}/{timestampNum}, {product['values']['area']} {sObsTitle}, {product['values']['dpi']} DPI - Bailey, Sam.png")
             if noShow == False:
                 save.show()
         print("<run> Map successfully saved!")

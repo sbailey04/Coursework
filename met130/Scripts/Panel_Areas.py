@@ -9,8 +9,10 @@
 #                                              #
 ################################################
 
-rom metpy.plots import declarative
+from metpy.plots import declarative
 from collections import Counter
+import os
+import json
 
 area = input("> Input the postal code area you would like the coordinates for: ")
 
